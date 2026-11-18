@@ -17,9 +17,8 @@ const QUESTIONS = [
   ['allergies', 'Any food allergies or intolerances?', 'chips', 'allergy'],
   ['budget', 'Rough weekly food budget? (£)', 'number'],
   ['prepTime', 'Time you can spend preparing a typical meal? (minutes)', 'number'],
-  ['kcal', 'Do you already use a daily calorie target? (kcal)', 'number'],
-  ['protein', 'Do you already use a daily protein target? (g)', 'number'],
-  ['fibre', 'Do you already use a daily fibre target? (g)', 'number'],
+  ['goalWeight', 'What weight would you like to get to? (kg)', 'number'],
+  ['pace', 'How fast do you want to get there?', 'select', ['Slow (about 0.25 kg a week)', 'Medium (about 0.5 kg a week)', 'Fast (about 0.75 kg a week)']],
   ['clinician', 'Any current guidance from a doctor, physio or other clinician that affects training? (You can add dated notes in Health later.)', 'textarea'],
 ];
 
@@ -126,9 +125,10 @@ function ivAnswer(mode) {
   P()[k] = v;
   if (k === 'branch') { S.gyms[0].name = has(v) ? 'Anytime Fitness – ' + v : 'Anytime Fitness'; P().branchConfirmed = false; }
   if (k === 'days') P().daysConfirmed = false;
+  if (k === 'pace') P().kgPerWeek = has(v) ? +(String(v).match(/0\.\d+/) || [''])[0] || '' : '';
   if (k === 'weight' && +v > 0 && !S.weights.some(w => w.date === today())) S.weights.push({id: uid(), date: today(), kg: v, source: 'Profile'});
   if (ivSingle) { ivSingle = null; save(); return go(ivReturn || 'Profile'); }
-  S.iv = i + 1; if (S.iv >= QUESTIONS.length) P().done = true;
+  S.iv = i + 1; if (S.iv >= QUESTIONS.length) { P().done = true; if (S.settings.autoTargets == null) S.settings.autoTargets = true; }
   save(); render();
 }
 function editAnswer(k, back = 'Profile') { ivSingle = k; ivReturn = back; go('Interview'); }

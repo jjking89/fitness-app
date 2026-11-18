@@ -108,8 +108,9 @@ screens.Settings = () => {
   return `<h1 class="xl">Settings</h1>
   <div class="card"><h2>Weight goal</h2>
     <label>Main goal</label><select onchange="S.profile.goal=this.value;save();render()">${QUESTIONS.find(q => q[0] === 'goal')[3].map(o => `<option ${P().goal === o ? 'selected' : ''}>${o}</option>`).join('')}</select>
-    ${num('Goal weight', P().goalWeight, "setP('goalWeight',this.value)", .1, 'kg')}
-    ${num('Change per week', P().kgPerWeek, "setP('kgPerWeek',this.value)", .05, 'kg/week')}
+    ${num('Goal weight', P().goalWeight, "S.profile.goalWeight=+this.value||'';retarget()", .1, 'kg')}
+    <label>How fast</label><div class="chips">${['Slow (about 0.25 kg a week)', 'Medium (about 0.5 kg a week)', 'Fast (about 0.75 kg a week)'].map(o => `<button class="chip ${P().pace === o ? 'on' : ''}" onclick="S.profile.pace=${esc(js(o))};S.profile.kgPerWeek=${o.match(/0\.\d+/)[0]};retarget()">${o.split(' (')[0]}<br><small>${o.match(/\((.*)\)/)[1]}</small></button>`).join('')}</div>
+    ${num('Or exact kg per week', P().kgPerWeek, "S.profile.kgPerWeek=+this.value||'';S.profile.pace='';retarget()", .05, 'kg/week')}
     <p class="mute">Leave blank to use the default for your goal. Auto-targets cap this at 1% of your body weight a week.</p>
     ${fast ? `<div class="note">${r} kg a week is more than 1% of your body weight. Auto-targets will use ${(w.kg * .01).toFixed(2)} kg a week.</div>` : ''}
     ${goalInfo()}</div>
@@ -198,4 +199,12 @@ function completeDay(d = today()) {
   else if (w && tdee && eaten) { const in5 = w.kg - (tdee - eaten) * 35 / KCAL_PER_KG;
     toastMsg(`Done ✓ If every day were like today, you'd weigh about ${in5.toFixed(1)} kg in 5 weeks.`); }
   else toastMsg('Done ✓ Day completed.');
+}
+
+// Recalculate targets now (e.g. after changing goal or pace), without waiting for the next weigh-in.
+function retarget() {
+  const r = calcTargets(); if (!r) { save(); return render(); }
+  const old = +P().kcal; delete S.profile.kcal; const r2 = calcTargets() || r; // a deliberate change isn't limited to 150 kcal
+  S.coach.history.push({id: uid(), date: today(), from: {...pick(P(), TKEYS), kcal: old || ''}, to: r2.t, how: r2.how, kg: r2.kg, rate: r2.rate, seen: false});
+  S.coach.tdee = r2.tdee; Object.assign(S.profile, r2.t); save(); render();
 }
