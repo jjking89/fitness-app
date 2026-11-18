@@ -213,3 +213,7 @@ details.more[open]>summary::before{content:'－ '}
 .acts4>button b{font-size:22px;font-weight:400}
 .slotsel{display:flex;align-items:center;gap:8px;margin:0 0 var(--s2);font-size:14px;color:var(--mute,inherit)}
 .slotsel select{width:auto;flex:0 1 auto;min-height:36px;padding:4px 8px}
+/* iOS date/time inputs ignore width:100% and overflow their box */
+input[type=date],input[type=time]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;text-align:left}
+input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and-time-value{text-align:left;margin:0}
+.row>*,.grid2>*{min-width:0}
