@@ -19,7 +19,10 @@ async function scanBarcode() {
     await scanner.start({facingMode: 'environment'}, {fps: 10, qrbox: {width: 260, height: 140}}, code => { closeScan(); handleCode(code); }, () => {});
   } catch (e) { const r = document.getElementById('reader'); if (r) r.innerHTML = `<p class="mute">${esc(e.message || 'Camera not available. Allow camera access in Settings, or type the number below.')}</p>`; }
 }
-function closeScan() { const s = scanner; scanner = null; s?.stop().catch(() => {}).finally(() => s.clear?.()); document.getElementById('scanbox')?.remove(); }
+function closeScan() {
+  const s = scanner; scanner = null; document.getElementById('scanbox')?.remove();
+  try { s?.stop().catch(() => {}).finally(() => { try { s.clear(); } catch {} }); } catch {} // stop() throws if the camera never started
+}
 
 async function handleCode(code) {
   if (!/^\d{6,14}$/.test(code)) return alert("That doesn't look like a barcode number.");
