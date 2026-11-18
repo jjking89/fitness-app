@@ -148,47 +148,16 @@ const APPT_TYPES = ['Sleep apnoea assessment', 'Exercise testing', 'Cardiac MRI'
 const SYMPTOMS = ['Chest discomfort', 'Palpitations', 'Light-headedness', 'Change in exercise tolerance', 'Other'];
 screens.Health = () => {
   const H = S.health, st = stepsOn(today());
-  return `<h1>Health</h1>
+  return `<h1>Health</h1>${weekStats7()}
   <div class="card"><h2>Steps</h2>${macroRow('Today', st ?? 0, P().stepGoal, '')}${st == null ? '<p class="mute">Not logged today.</p>' : ''}
     <form class="row mt" onsubmit="event.preventDefault();setSteps(this.d.value,this.s.value)"><input name="d" type="date" value="${today()}" aria-label="Date"><input name="s" type="number" inputmode="numeric" placeholder="Steps" required><button class="sec">Save</button></form>
-    <p class="mute">Manual entry. Saving again for the same day replaces it. Automatic steps aren't available: iPhone web apps can't read Apple Health.</p>
     <ul>${items('steps', x => (+x.steps).toLocaleString('en-GB') + ' steps', 5)}</ul></div>
   <div class="card"><h2>Sleep</h2><form onsubmit="event.preventDefault();logSleep(this)">
     <label>Night of</label><input name="date" type="date" value="${dayOffset(-1)}">
     <div class="row"><div><label>Bedtime</label><input name="bed" type="time" required></div><div><label>Wake time</label><input name="wake" type="time" required></div></div>
     <input name="note" placeholder="Notes (optional)" class="mt"><button class="mt">Save sleep</button></form>
-    <ul class="mt">${items('sleep', x => `${fmtHours(+x.hours)}${x.bed ? ` · ${esc(x.bed)}–${esc(x.wake)}` : ''}${x.source ? ` <span class="tag">${esc(x.source)}</span>` : ''}${sleepExtras(x) ? '<br><span class="mute">' + sleepExtras(x) + '</span>' : ''}${x.note ? '<br><span class="mute">' + esc(x.note) + '</span>' : ''}`, 5)}</ul></div>
-  ${ringCard()}
-  <h2 style="margin-top:20px">🔒 Private health</h2><p class="mute">Stored only on this device. Left out of backups and summaries unless you choose to include it.</p>
-  ${SAFETY}
-  <div class="card"><h2>Clinician notes &amp; guidance</h2><p class="mute">Date each entry. The newest “Guidance” entry is shown on Training.</p>
-    <form onsubmit="event.preventDefault();add('health.notes',form(this));this.reset()"><div class="row"><div><label>Date</label><input type="date" name="date" value="${today()}" required></div><div><label>Type</label><select name="kind"><option value="guidance">Guidance</option><option value="result">Test result</option><option value="other">Other</option></select></div></div>
-      <label>Source</label><input name="source" placeholder="e.g. clinic letter, echo report"><label>Summary</label><textarea name="text" rows="4" required></textarea><button class="mt">Save note</button></form>
-    <ul class="mt">${items('health.notes', x => `<span class="tag">${esc(x.kind)}</span> ${esc(x.source)}<br>${esc(x.text)}`, 50)}</ul></div>
-  <div class="card"><h2>Training limits from your care team</h2><p class="mute">Leave blank unless your care team gave them to you.</p>
-    <label>Movements to avoid</label><input value="${esc(H.constraints.avoid)}" onchange="S.health.constraints.avoid=this.value;save()">
-    <label>Heart-rate zones</label><input value="${esc(H.constraints.hr)}" onchange="S.health.constraints.hr=this.value;save()">
-    <label>Intensity limits</label><input value="${esc(H.constraints.intensity)}" onchange="S.health.constraints.intensity=this.value;save()"></div>
-  <details class="card more"><summary>Follow-ups &amp; appointments</summary>
-    <form onsubmit="event.preventDefault();add('health.appts',form(this));this.reset()"><label>Type</label><select name="type">${APPT_TYPES.map(t => `<option>${t}</option>`).join('')}</select>
-      <div class="row"><div><label>Status</label><select name="status"><option>To arrange</option><option>Booked</option><option>Done</option></select></div><div><label>Date</label><input type="date" name="date"></div><div><label>Time</label><input type="time" name="time"></div></div>
-      <input name="note" placeholder="Notes" class="mt"><button class="mt">Add follow-up</button></form>
-    <ul class="mt">${items('health.appts', x => `<b>${esc(x.type)}</b> <span class="tag">${esc(x.status)}</span>${x.note ? '<br>' + esc(x.note) : ''}`, 50)}</ul></details>
-  <details class="card more"><summary>Symptom log</summary>
-    <form onsubmit="event.preventDefault();add('health.symptoms',form(this));this.reset()"><label>Symptom</label><select name="symptom">${SYMPTOMS.map(t => `<option>${t}</option>`).join('')}</select>
-      <div class="row"><div><label>Date</label><input type="date" name="date" value="${today()}" required></div><div><label>Time</label><input type="time" name="time"></div></div>
-      <label>What were you doing?</label><input name="activity"><label>How long did it last?</label><input name="duration" placeholder="e.g. 2 minutes"><label>Notes</label><textarea name="note" rows="2"></textarea><button class="mt">Log symptom</button></form>
-    <ul class="mt">${items('health.symptoms', x => `<b>${esc(x.symptom)}</b>${x.activity ? ' · during ' + esc(x.activity) : ''}${x.duration ? ' · ' + esc(x.duration) : ''}${x.note ? '<br>' + esc(x.note) : ''}`, 50)}</ul></details>
-  <details class="card more"><summary>Medication (optional)</summary>
-    <label class="chk"><input type="checkbox" ${H.med.enabled ? 'checked' : ''} onchange="S.health.med.enabled=this.checked;save();render()"> Track a GLP-1 medication</label>
-    ${H.med.enabled ? `<div class="note">This app never suggests changing a dose or taking a catch-up dose. Ask your prescriber or pharmacist.</div>
-      <label>Medication name</label><input value="${esc(H.med.name)}" onchange="S.health.med.name=this.value;save()"><label>Prescribed dose</label><input value="${esc(H.med.dose)}" onchange="S.health.med.dose=this.value;save()">
-      <label>Start date</label><input type="date" value="${esc(H.med.start)}" onchange="S.health.med.start=this.value;save()">
-      <h3>Log a dose</h3><form onsubmit="event.preventDefault();add('health.doses',form(this));this.reset()"><div class="row"><div><label>Date</label><input type="date" name="date" value="${today()}" required></div><div><label>Time</label><input type="time" name="time"></div></div>
-        <label>Dose taken</label><input name="dose"><label>Appetite</label><select name="appetite"><option value="">—</option><option>Much lower than usual</option><option>A bit lower</option><option>Usual</option><option>Higher</option></select>
-        <label>Side effects</label><input name="side"><label>Notes</label><input name="note"><button class="mt">Save dose</button></form>
-      <ul class="mt">${items('health.doses', x => `${esc(x.dose) || 'Dose'}${x.appetite ? ' · appetite: ' + esc(x.appetite) : ''}${x.side ? '<br>Side effects: ' + esc(x.side) : ''}`, 20)}</ul>` : ''}</details>
-  <button class="sec" onclick="go('Clinician')">Preview summary for my clinician</button>`;
+    <ul class="mt">${items('sleep', x => `${fmtHours(+x.hours)}${x.bed ? ` · ${esc(x.bed)}–${esc(x.wake)}` : ''}${x.source ? ` <span class="tag">${esc(x.source)}</span>` : ''}${sleepExtras(x) ? '<br><span class="mute">' + sleepExtras(x) + '</span>' : ''}${x.note ? '<br><span class="mute">' + esc(x.note) + '</span>' : ''}`, 3)}</ul></div>
+`;
 };
 
 // ---------- clinician summary (preview, then copy or download; never sent automatically) ----------
@@ -292,3 +261,16 @@ function demo() {
   save(); render();
 }
 TAB_OF.Review = 'Today';
+
+// This week at a glance: what the weekly review judges (sleep, steps, calories), averaged over logged days only.
+function weekStats7() {
+  const days = [...Array(7)].map((_, i) => dayOffset(i - 6)), avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const st = days.map(stepsOn).filter(v => v != null), sl = S.sleep.filter(x => days.includes(x.date)).map(x => +x.hours).filter(Boolean), kc = days.map(d => dayTotals(d)).filter(t => t.n).map(t => t.kcal);
+  const row = (l, v, goal, unit, good) => `<li><span>${l}</span><span>${v == null ? '<span class="mute">not logged</span>' : `<b>${v}</b> ${unit}${goal ? ` <span class="tag ${good ? '' : 'warn'}">${good ? 'on track' : 'below goal'}</span>` : ''}`}</span></li>`;
+  const sGoal = +P().stepGoal || 8000, aS = avg(st), aSl = avg(sl), aK = avg(kc), kT = +P().kcal;
+  return `<div class="card"><h2>This week</h2><ul>
+    ${row('Sleep (avg)', aSl == null ? null : fmtHours(aSl), 7, '', aSl >= 7)}
+    ${row('Steps (avg)', aS == null ? null : Math.round(aS).toLocaleString('en-GB'), sGoal, '', aS >= sGoal)}
+    ${aK == null ? row('Calories (avg)', null) : `<li><span>Calories (avg)</span><span><b>${gb(Math.round(aK))}</b>${kT ? ` <span class="tag ${aK <= kT * 1.05 ? '' : 'warn'}">${aK <= kT * 1.05 ? 'on target' : 'over target'}</span>` : ''}</span></li>`}</ul>
+    <p class="mute">Feeds your weekly review. Goals: 7+ hours sleep, ${sGoal.toLocaleString('en-GB')} steps (change in Settings).</p></div>`;
+}

@@ -150,7 +150,7 @@ function weekStats(from) { // 7 days starting `from`
   const best = {}; S.workouts.filter(w => days.includes(w.date) && +w.kg > 0).forEach(w => best[w.exercise] = Math.max(best[w.exercise] || 0, +w.kg));
   return {days, logged: md.length, full: tot.filter(t => t.kcal >= 1000).length, kcal: av(tot, 'kcal'), protein: av(tot, 'protein'), fibre: av(tot, 'fibre'),
     wknd: av(wknd, 'kcal'), wkdy: av(wkdy, 'kcal'), trained: new Set(S.workouts.filter(w => days.includes(w.date)).map(w => w.date)).size, best,
-    sleep: av(S.sleep.filter(s => days.includes(s.date)), 'hours'), w: allWeights().filter(x => days.includes(x.date))};
+    sleep: av(S.sleep.filter(s => days.includes(s.date)), 'hours'), steps: (v => v.length ? v.reduce((x, y) => x + y, 0) / v.length : null)(days.map(stepsOn).filter(x => x != null)), w: allWeights().filter(x => days.includes(x.date))};
 }
 function coachInsights(from) {
   const a = weekStats(from), b = weekStats(dayOffset(-7, from)), work = [], imp = [], T = P(), pct = (v, t) => v / t;
@@ -178,6 +178,9 @@ function coachInsights(from) {
   if (plannedN && a.trained < plannedN) imp.push({what: `${a.trained} of ${plannedN} planned workouts`, how: 'Short on time? Do just the first two exercises: a short session still counts. Or accept the proposal below to move a session to a better day.'});
   if (a.sleep != null && a.sleep < 7) imp.push({what: `Sleep averaged ${fmtHours(a.sleep)}`, how: 'Pick a fixed bedtime and set a phone alarm 30 minutes before it as your cue to wind down.'});
   else if (a.sleep >= 7) work.push(`Sleep averaged ${fmtHours(a.sleep)}.`);
+  const sg = +T.stepGoal || 8000;
+  if (a.steps != null && a.steps >= sg) work.push(`Steps averaged ${Math.round(a.steps).toLocaleString('en-GB')} a day.`);
+  else if (a.steps != null) imp.push({what: `Steps averaged ${Math.round(a.steps).toLocaleString('en-GB')} of ${sg.toLocaleString('en-GB')}`, how: 'A 10-minute walk after lunch and dinner adds about 2,000 steps. Park further away or get off a stop early.'});
   if (a.w.length && b.w.length) { const d = a.w.at(-1).kg - b.w.at(-1).kg, g = +T.goalWeight;
     if (g && Math.sign(d) === Math.sign(g - b.w.at(-1).kg) && Math.abs(d) >= .1) work.push(`Weight moved ${Math.abs(d).toFixed(1)} kg towards your goal.`);
     else if (g) imp.push({what: `Weight didn't move towards your goal this week (${d >= 0 ? '+' : ''}${d.toFixed(1)} kg)`, how: 'One week is noisy (water, salt, timing). Keep logging. If auto-targets are on, they will adjust after your next weigh-in.'}); }
