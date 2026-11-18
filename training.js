@@ -36,7 +36,8 @@ function candidates(group, g, exclude = []) {
   return LIB.filter(l => l[1] === group && !exclude.includes(l[0]) && equipOk(g, l[0]) && willing(l[0]))
     .sort((a, b) => likeScore(a[0]) - likeScore(b[0]) || b[3] - a[3]).map(l => l[0]);
 }
-const alternatives = ex => candidates(libOf(ex)[1], gym(), [ex]);
+const patOf = ex => Object.keys(PAT).find(k => PAT[k].includes(ex));
+const alternatives = ex => [...new Set([...(PAT[patOf(ex)] || []).filter(x => x !== ex && equipOk(gym(), x) && willing(x)), ...candidates(libOf(ex)[1], gym(), [ex])])];
 
 // ---------- Routine generator: compound lifts first, time-capped ----------
 // Evidence-based defaults: 1–2 big compound lifts first while fresh (heavier, longer rest), then 3–4 accessories
@@ -398,17 +399,17 @@ function activeWorkout() {
 }
 
 // ---------- Jefit-style plan view: today's workout ready to go, the week's plan, and a manual section ----------
-const exLine = i => { const s = typeof i === 'string' ? {ex: i} : i; return `<li class="exl"><span class="exn">${esc(s.ex)}${s.compound ? ' <span class="tag">compound</span>' : ''}${s.ss ? ` <span class="tag">superset ${s.ss === 'a' ? '1/2' : '2/2'}</span>` : ''}${s.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="mute">${s.sets || 3} sets × ${esc(s.reps || '8–12')} reps · rest ${S.rest[s.ex] ?? s.rest ?? restOf(s.ex)} s</span></span></li>`; };
+const exLine = (i, rid, k) => { const s = typeof i === 'string' ? {ex: i} : i; return `<li class="exl"><span class="exn">${esc(s.ex)}${s.compound ? ' <span class="tag">compound</span>' : ''}${s.ss ? ` <span class="tag">superset ${s.ss === 'a' ? '1/2' : '2/2'}</span>` : ''}${s.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="mute">${s.sets || 3} sets × ${esc(s.reps || '8–12')} reps · rest ${S.rest[s.ex] ?? s.rest ?? restOf(s.ex)} s</span></span>${rid != null ? `<button class="link" style="width:auto" onclick="swapFor=swapFor==='${rid}:${k}'?null:'${rid}:${k}';render()" aria-label="Swap ${esc(s.ex)}">Swap</button>` : ''}</li>${swapFor === `${rid}:${k}` ? swapPicker(s.ex, rid, k) : ''}`; };
 let openPlan = null;
 function planCards(tr) {
   const gen = S.routines.filter(r => r.generated), dayOf = r => DAYS.filter(d => S.week.days[d] == r.id).join(', ');
   const hero = tr ? `<div class="card hero"><div class="mute">Today's workout${planTag()}</div><h2>${esc(tr.name)}</h2><p class="mute">${tr.items.length} exercises · ${timeLabel(tr.items)}</p>
-      <ul>${tr.items.map(exLine).join('')}</ul><button class="mt" onclick="startWorkout(${tr.id})">Start workout</button></div>`
+      <ul>${tr.items.map((x, k) => exLine(x, tr.id, k)).join('')}</ul><button class="mt" onclick="startWorkout(${tr.id})">Start workout</button></div>`
     : gen.length ? `<div class="card hero"><div class="mute">Today</div><h2>Rest day</h2><p class="mute">Nothing planned. Fancy a session anyway? Pick one below.</p></div>`
     : `<div class="card hero"><h2>Get a plan built for you</h2><p class="mute">Answer a few quick questions and I'll build your week: exercises, sets, reps and rest, timed to fit your session and your gym's equipment.</p><button class="mt" onclick="go('Generate')">Build my plan</button></div>`;
   const week = gen.length ? `<h3>Your plan</h3>${gen.map(r => `<div class="card"><div class="sec-h"><div><b>${esc(r.name)}</b><div class="mute">${dayOf(r) || 'Not on a day'} · ${r.items.length} exercises · ${timeLabel(r.items)}</div></div>
       <button class="link" style="width:auto" onclick="openPlan=openPlan===${r.id}?null:${r.id};render()">${openPlan === r.id ? 'Hide' : 'View'}</button></div>
-      ${openPlan === r.id ? `<ul>${r.items.map(exLine).join('')}</ul>` : ''}<div class="grid2 mt"><button onclick="startWorkout(${r.id})">Start</button><button class="sec" onclick="editingRoutine=${r.id};go('Routine')">Edit</button></div></div>`).join('')}
+      ${openPlan === r.id ? `<ul>${r.items.map((x, k) => exLine(x, r.id, k)).join('')}</ul>` : ''}<div class="grid2 mt"><button onclick="startWorkout(${r.id})">Start</button><button class="sec" onclick="editingRoutine=${r.id};go('Routine')">Edit</button></div></div>`).join('')}
       <button class="sec" onclick="rebuildPlan()">Rebuild my plan</button>` : '';
   const manual = `<h3>Manual</h3><div class="card"><p class="mute">Build your own, or just start and add exercises as you go.</p>
       ${act3([['Empty workout', 'plus', 'startWorkout()'], ['New routine', 'edit', "const r={id:uid(),name:'New routine',items:[]};S.routines.push(r);editingRoutine=r.id;save();go('Routine')"], ['Import', 'more', "go('RoutineImport')"]])}
@@ -445,4 +446,18 @@ function rebuildPlan() {
 function ssNext(a, i) {
   const it = a.items[i], nx = a.items[i + 1], done = x => x.sets.filter(s => s.done).length;
   return it?.ss === 'a' && nx?.ss === 'b' && done(it) > done(nx) && nx.sets.some(s => !s.done) ? i + 1 : i;
+}
+
+// ---------- swap an exercise in a plan for one you prefer ----------
+let swapFor = null, swapDislike = true;
+function swapPicker(ex, rid, k) {
+  const alts = alternatives(ex);
+  return `<li class="swap" style="display:block"><div class="mute">Swap ${esc(ex)} for (same movement first):</div>
+    ${alts.length ? `<div class="pills mt">${alts.slice(0, 6).map(a => `<button class="pill" onclick="swapEx(${rid},${k},${esc(js(a))})">${esc(a)}</button>`).join('')}</div>` : '<p class="mute">No other option with your available equipment. Mark more equipment as available in Gyms.</p>'}
+    <label class="chk"><input type="checkbox" ${swapDislike ? 'checked' : ''} onchange="swapDislike=this.checked"> Only use ${esc(ex)} in future plans if nothing else fits</label></li>`;
+}
+function swapEx(rid, k, name) {
+  const r = S.routines.find(x => x.id == rid), it = r?.items[k]; if (!it) return;
+  if (swapDislike) S.prefs[it.ex] = 'dislike';
+  Object.assign(it, {alt: it.ex, ex: name}); swapFor = null; save(); render();
 }

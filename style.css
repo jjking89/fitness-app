@@ -175,3 +175,4 @@ body{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .exl{min-height:0;padding:var(--s2) 0}
 .exn{line-height:1.35}
 h3{margin-top:var(--s5)}
+.exl button{white-space:nowrap;flex:none;min-width:0;padding:4px 6px}
