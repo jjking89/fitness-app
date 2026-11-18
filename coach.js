@@ -120,7 +120,7 @@ screens.Settings = () => {
     <p class="mute">You can change any target by hand. The next weekly update starts from what you set.</p>
     ${S.coach.history.length && !S.coach.history.at(-1).undone ? `<button class="sec mt" onclick="if(confirm('Go back to the targets before the last automatic update?'))undoTargets()">Undo last automatic update (${ukDate(S.coach.history.at(-1).date)})</button>` : ''}</div>
   <div class="card"><h2>Workouts</h2>
-    ${num('Session length, rests included', P().session, "setP('session',this.value)", 5, 'min')}
+    ${num('Workout length, not counting rests', P().session, "setP('session',this.value)", 5, 'min')}
     ${num('Default rest between sets', S.settings.restDefault, "setS('restDefault',+this.value||'')", 15, 'sec')}
     <p class="mute">Blank uses a sensible rest for each exercise (longer for big lifts).</p>
     <label>Stick with each plan for</label><select onchange="setS('planWeeks',+this.value);if(S.plan)S.plan.weeks=+this.value;save()">${[4, 5, 6].map(n => `<option value="${n}" ${(+S.settings.planWeeks || 6) === n ? 'selected' : ''}>${n} weeks</option>`).join('')}</select>

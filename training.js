@@ -45,14 +45,14 @@ const COMPOUND = new Set(['Barbell back squat', 'Goblet squat', 'Leg press', 'Sm
 const isCompound = n => COMPOUND.has(n);
 // experience: [compound sets, compound reps, compound rest s, accessory sets, accessory reps, accessory rest s]
 const VOLUME = {'New to it': [3, '8–10', 120, 2, '10–15', 60], 'Under 1 year': [3, '6–10', 150, 3, '10–12', 75], '1–3 years': [4, '5–8', 150, 3, '8–12', 75], '3+ years': [4, '5–8', 180, 3, '8–12', 75]};
-const WARMUP = 5, WORK_MIN = .75, MOVE_MIN = 1.5; // minutes: warm-up, one working set, moving between stations
+const WARMUP = 5, WORK_MIN = 1.25, MOVE_MIN = 1.5; // minutes: warm-up, one working set incl. loading/setup, moving between stations
 const restMin = items => items.reduce((t, i) => t + (i.sets - 1) * i.rest / 60, 0);
 function estMinutes(items, skipOptional = false) { // total time, rests included
   const it = items.filter(i => !(skipOptional && i.optional));
   return Math.round(WARMUP + it.reduce((t, i) => t + i.sets * WORK_MIN + MOVE_MIN, 0) + restMin(it));
 }
 const liftMinutes = items => Math.round(estMinutes(items) - restMin(items)); // warm-up, sets and moving, no rests
-const timeLabel = items => `~${estMinutes(items)} min incl. rests`;
+const timeLabel = items => `~${liftMinutes(items)} min workout · ~${estMinutes(items)} min with rests`;
 const accRank = n => (isCompound(n) ? 1 : 0) + (libOf(n)[2].every(e => e === 'Resistance bands') ? 2 : 0);
 // slots: 'C:Group' = compound, 'Group' = accessory, trailing '*' = optional
 function buildRoutine(name, slots, g, limit, prev = []) {
@@ -67,19 +67,19 @@ function buildRoutine(name, slots, g, limit, prev = []) {
       : {ex: c[0], sets: optional ? 2 : as, reps: ar, rest: arest, alt: c[1] || '', optional});
   }
   // fit the time cap: trim accessory sets (last first), then drop the optional one, then the last accessory. Compounds stay.
-  for (let i = items.length - 1; estMinutes(items) > limit && i >= 0; i--) if (!items[i].compound && items[i].sets > 2) { items[i].sets--; i = items.length; }
-  if (estMinutes(items) > limit) { const o = items.findIndex(i => i.optional); if (o > -1) items.splice(o, 1); }
-  while (estMinutes(items) > limit && items.length > 3 && !items.at(-1).compound) items.pop();
+  for (let i = items.length - 1; liftMinutes(items) > limit && i >= 0; i--) if (!items[i].compound && items[i].sets > 2) { items[i].sets--; i = items.length; }
+  if (liftMinutes(items) > limit) { const o = items.findIndex(i => i.optional); if (o > -1) items.splice(o, 1); }
+  while (liftMinutes(items) > limit && items.length > 3 && !items.at(-1).compound) items.pop();
   // use the time you have: add sets (accessories first, max 4; then compounds, max 5) while it still fits
   for (let grew = true; grew;) { grew = false;
     for (const it of [...items.filter(i => !i.compound), ...items.filter(i => i.compound)]) {
       if (it.sets >= (it.compound ? 5 : 4)) continue;
-      it.sets++; if (estMinutes(items) > limit) it.sets--; else grew = true;
+      it.sets++; if (liftMinutes(items) > limit) it.sets--; else grew = true;
     } }
   return {id: uid(), name, items, missing, generated: true, gymId: g.id};
 }
 function generatePlan() {
-  const g = gym(), days = Array.isArray(P().days) ? P().days : [], limit = +P().session || 60;
+  const g = gym(), days = Array.isArray(P().days) ? P().days : [], limit = +P().session || 45;
   const split = days.length >= 4
     ? [['Upper', ['C:Chest', 'C:Back', 'Shoulders', 'Back', 'Chest', 'Arms*']], ['Lower', ['C:Legs', 'C:Hamstrings', 'Legs', 'Hamstrings', 'Shoulders*']]]
     : [['Full body A', ['C:Legs', 'C:Chest', 'Back', 'Hamstrings', 'Shoulders', 'Arms*']], ['Full body B', ['C:Hamstrings', 'C:Back', 'Chest', 'Legs', 'Shoulders', 'Arms*']]];
@@ -317,7 +317,7 @@ function tick() {
 screens.Training = () => {
   if (S.active) return activeWorkout();
   const tr = todaysRoutine(), g = gym();
-  return `<h1 class="xl">Training</h1>${seg([['Routines', "go('Training')"], ['Planner', "go('Planner')"], ['Gyms', "go('Gyms')"]], 'Routines')}<p class="mute">${P().session} min sessions, rests included${Array.isArray(P().days) ? ' · ' + P().days.join(', ') : ''}</p>
+  return `<h1 class="xl">Training</h1>${seg([['Routines', "go('Training')"], ['Planner', "go('Planner')"], ['Gyms', "go('Gyms')"]], 'Routines')}<p class="mute">${P().session} min workouts, plus rests${Array.isArray(P().days) ? ' · ' + P().days.join(', ') : ''}</p>
   <div class="card"><label>Gym</label><select onchange="S.gymId=+this.value;save();render()">${S.gyms.map(x => `<option value="${x.id}" ${x.id == g.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
     <button class="sec mt" onclick="go('Gyms')">Gyms, equipment &amp; preferences</button></div>
   ${latestGuidance() || has(P().clinician) ? guidanceBlock() : ''}
