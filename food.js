@@ -118,7 +118,7 @@ const draftTotals = items => items.reduce((t, x) => itemMacros(x).map((v, i) => 
 // ---------- draft lifecycle ----------
 const newDraft = () => ({id: uid(), items: [], photos: [], text: '', name: '', askedOil: false, voice: false});
 function openMeal(mode) {
-  S.draft ||= newDraft(); save(); go('Meal');
+  S.draft ||= newDraft(); if (mode !== 'photo') S.draft.mode = mode; save(); go('Meal');
   if (mode === 'photo') photoIn.click(); // iOS offers Take Photo or Photo Library
   if (mode === 'speak') speak();
   if (mode === 'type') document.getElementById('mealText')?.focus();
@@ -214,37 +214,43 @@ screens.Meal = () => {
   if (!d) return `<h1>Meal</h1><div class="card"><p>No draft open.</p><button onclick="openMeal('type')">Start a meal</button></div>`;
   const [k, p, c, f, fb] = draftTotals(d.items), q = questions(d), unknown = d.items.filter(x => x.src === 'unknown').length, est = d.items.some(x => x.src !== 'packet');
   const rec = recentMeals(6).filter(m => !d.slot || slotOf(m) === d.slot).slice(0, 4);
-  return `<h1>${d.slot ? 'Log ' + d.slot.toLowerCase() : 'Log food'}</h1><p class="mute">Nothing is saved until you tap Confirm.</p>
-  ${!d.items.length ? `<div class="grid3"><button onclick="photoIn.click()">📷<br>Take photo</button><button onclick="speak()">🎤<br>Speak</button><button onclick="document.getElementById('mealText').focus()">⌨️<br>Type</button></div>
-  ${rec.length ? `<div class="card mt"><h2>Recent</h2><ul>${rec.map(m => `<li><span>${esc(m.name)}<br><span class="mute">${gb(m.kcal)} kcal</span></span><button onclick="S.draft=null;repeatMeal({...${esc(js(pick(m, MEAL_KEYS)))},slot:${esc(js(d.slot || slotOf(m)))}});go('Today')">+ Add</button></li>`).join('')}</ul></div>` : ''}` : ''}
-  ${d.photos.map((ph, i) => `<img src="${ph}" alt="Meal photo ${i + 1}" style="width:100%;border-radius:12px;margin-bottom:8px">`).join('')}
-  ${d.photos.length ? (aiKey() ? `<button class="mt" ${estBusy ? 'disabled' : ''} onclick="estimatePhoto()">${estBusy ? 'Estimating…' : '✨ Estimate this photo with Claude'}</button><p class="mute">Asks before sending. You can edit every item before saving.</p>` : `<div class="note">The photo stays on this device. Describe the meal below, paste an estimate from Claude Desktop, or add a Claude API key in Settings for one-tap estimates.</div>`) : ''}
-  <label>Meal</label><select onchange="S.draft.slot=this.value;save();render()">${['', ...MEAL_SLOTS.map(x => x[0])].map(s => `<option value="${s}" ${(d.slot || '') === s ? 'selected' : ''}>${s || 'By time of day'}</option>`).join('')}</select>
-  <div class="card"><label for="mealText">${d.items.length ? 'Add or correct (e.g. “that was chicken thigh, I only ate half the rice”)' : 'What did you eat?'}</label>
-    <textarea id="mealText" rows="3" placeholder="I had two eggs, two slices of toast with butter and a coffee with milk" oninput="S.draft.text=this.value;save()">${esc(d.text)}</textarea>
-    <p id="speakMsg" class="mute"></p>
-    <button class="mt" onclick="applyMealText()">${d.items.length ? 'Update draft' : 'Make draft'}</button>
-    <div class="grid2 mt"><button class="sec" onclick="speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Add photo</button></div></div>
+  const head = `<div class="sec-h"><h1>${d.slot ? 'Log ' + d.slot.toLowerCase() : 'Log food'}</h1><button class="link" style="width:auto" onclick="if(!S.draft.items.length||confirm('Discard this meal?')){S.draft=null;save();go('Today')}">Cancel</button></div>`;
+  const input = (label) => `<div class="card"><label for="mealText">${label}</label>
+    <textarea id="mealText" rows="3" placeholder="e.g. two eggs, toast with butter and a coffee" oninput="S.draft.text=this.value;save()">${esc(d.text)}</textarea>
+    <p id="speakMsg" class="mute"></p><button class="mt" onclick="applyMealText()">${d.items.length ? 'Update' : 'Next'}</button></div>`;
+  const more = `<details class="card more"><summary>More options</summary>
+    <label>Meal</label><select onchange="S.draft.slot=this.value;save();render()">${['', ...MEAL_SLOTS.map(x => x[0])].map(s => `<option value="${s}" ${(d.slot || '') === s ? 'selected' : ''}>${s || 'By time of day'}</option>`).join('')}</select>
+    <button class="sec mt" onclick="S.draft.items.push({id:uid(),name:'New item',fam:'',per100:null,grams:100,unitG:100,src:'unknown',vary:false,qtyGiven:true});save();render()">+ Add item by hand</button>
+    <h3>Paste an estimate</h3><p class="mute">From Claude Desktop: attach your photo there with this prompt, then paste the reply here.</p>
+    <button class="sec" onclick="copyText(CLAUDE_PROMPT)">Copy prompt</button>
+    <textarea id="pasteText" rows="3" class="mt" placeholder="Chicken thigh | 150 | 314 | 39 | 0 | 16 | 0"></textarea><button class="sec mt" onclick="applyPaste()">Add pasted items</button></details>`;
+  // Step 1: choose how to log
+  if (!d.items.length && !d.photos.length && !d.mode) return `${head}
+    <div class="grid3 tiles3"><button onclick="photoIn.click()">📷<br>Photo</button><button onclick="S.draft.mode='speak';render();speak()">🎤<br>Speak</button><button onclick="S.draft.mode='type';render();document.getElementById('mealText').focus()">⌨️<br>Type</button></div>
+    ${rec.length ? `<h3>Recent</h3><div class="card"><ul>${rec.map(m => `<li><span>${esc(m.name)}<br><span class="mute">${gb(m.kcal)} kcal</span></span><button onclick="S.draft=null;repeatMeal({...${esc(js(pick(m, MEAL_KEYS)))},slot:${esc(js(d.slot || slotOf(m)))}});go('Today')">+ Add</button></li>`).join('')}</ul></div>` : ''}${more}`;
+  // Step 2: describe it (typed, spoken or photo)
+  if (!d.items.length) return `${head}
+    ${d.photos.map((ph, i) => `<img src="${ph}" alt="Meal photo ${i + 1}" class="mphoto">`).join('')}
+    ${d.photos.length && aiKey() ? `<button ${estBusy ? 'disabled' : ''} onclick="estimatePhoto()">${estBusy ? 'Estimating…' : '✨ Estimate with Claude'}</button><p class="mute center">or describe it:</p>` : ''}
+    ${input(d.mode === 'speak' ? 'Say what you ate' : 'What did you eat?')}
+    <div class="grid2"><button class="sec" onclick="S.draft.mode='speak';render();speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Photo</button></div>${more}`;
+  // Step 3: check and save
+  return `${head}
   ${q.length ? `<div class="card"><h2>Quick questions</h2>${q.join('')}</div>` : ''}
-  ${d.items.length ? `<div class="card"><h2>Items</h2><ul>${d.items.map(x => { const [ik, ip, ic, iff, ifb] = itemMacros(x); return `<li style="display:block">
-      <div class="row" style="align-items:center"><input value="${esc(x.name)}" onchange="itemSet(${x.id},'name',this.value)" aria-label="Food name" style="flex:3"><button class="link" style="flex:0 0 auto;width:auto" onclick="S.draft.items=S.draft.items.filter(i=>i.id!=${x.id});save();render()" aria-label="Remove ${esc(x.name)}">✕</button></div>
-      <div class="row mt" style="align-items:center"><input type="number" inputmode="decimal" value="${x.grams}" onchange="itemSet(${x.id},'grams',this.value)" aria-label="Amount in grams" style="flex:1"><span style="flex:0 0 auto">g/ml</span>
-        <button class="sec" style="flex:0 0 auto;width:auto" onclick="itemSet(${x.id},'grams',${x.grams / 2})">½</button><button class="sec" style="flex:0 0 auto;width:auto" onclick="itemSet(${x.id},'grams',${x.grams * 2})">×2</button></div>
-      <div class="mute mt">${x.per100 ? `${Math.round(ik)} kcal · P ${n1(ip)} g · C ${n1(ic)} g · F ${n1(iff)} g · Fibre ${n1(ifb)} g` : 'No values yet'}
-        <span class="tag ${x.src === 'unknown' ? 'warn' : ''}">${{est: 'estimate', paste: 'pasted estimate', packet: 'packet values', unknown: 'unknown'}[x.src]}</span>
-        <button class="link" style="width:auto" onclick="packetFor=packetFor===${x.id}?null:${x.id};render()">Enter packet values</button></div>
-      ${packetFor === x.id ? `<form class="mt" onsubmit="event.preventDefault();savePacket(${x.id},this)"><label>Values per</label><input name="base" type="number" inputmode="decimal" value="100" aria-label="Per grams"> <span class="mute">g/ml (as on the packet)</span>
+  <div class="card"><ul>${d.items.map(x => { const [ik, ip, ic, iff, ifb] = itemMacros(x); return `<li style="display:block">
+      <div class="row" style="align-items:center"><input value="${esc(x.name)}" onchange="itemSet(${x.id},'name',this.value)" aria-label="Food name" style="flex:3"><input type="number" inputmode="decimal" value="${x.grams}" onchange="itemSet(${x.id},'grams',this.value)" aria-label="Grams" style="flex:1.2"><span class="mute" style="flex:0 0 auto">g</span><button class="link" style="flex:0 0 auto;width:auto" onclick="S.draft.items=S.draft.items.filter(i=>i.id!=${x.id});save();render()" aria-label="Remove ${esc(x.name)}">✕</button></div>
+      <div class="mute">${x.per100 ? `${Math.round(ik)} kcal · P ${n1(ip)} · C ${n1(ic)} · F ${n1(iff)} · Fibre ${n1(ifb)} g` : 'No values yet'} <span class="tag ${x.src === 'unknown' ? 'warn' : ''}">${{est: 'estimate', paste: 'estimate', packet: 'packet', unknown: 'unknown'}[x.src]}</span>
+        <button class="link" style="width:auto;min-height:0;padding:4px" onclick="packetFor=packetFor===${x.id}?null:${x.id};render()">Packet values</button></div>
+      ${packetFor === x.id ? `<form class="mt" onsubmit="event.preventDefault();savePacket(${x.id},this)"><div class="row" style="align-items:center"><span class="mute" style="flex:0 0 auto">Per</span><input name="base" type="number" inputmode="decimal" value="100" aria-label="Per grams"><span class="mute" style="flex:0 0 auto">g/ml</span></div>
         <div class="grid2 mt"><input name="kcal" type="number" inputmode="decimal" step="any" placeholder="kcal" required><input name="p" type="number" inputmode="decimal" step="any" placeholder="Protein g"><input name="c" type="number" inputmode="decimal" step="any" placeholder="Carbs g"><input name="f" type="number" inputmode="decimal" step="any" placeholder="Fat g"><input name="fb" type="number" inputmode="decimal" step="any" placeholder="Fibre g"></div>
-        <button class="mt">Use packet values</button></form>` : ''}</li>`; }).join('')}</ul>
-    <button class="sec mt" onclick="S.draft.items.push({id:uid(),name:'New item',fam:'',per100:null,grams:100,unitG:100,src:'unknown',vary:false,qtyGiven:true});save();render()">+ Add item manually</button></div>
-  <div class="card"><h2>${est ? 'Estimated total' : 'Total'}</h2><div class="grid2"><div><span class="big">${Math.round(k)}</span> kcal</div><div class="mute">Protein ${n1(p)} g<br>Carbs ${n1(c)} g · Fat ${n1(f)} g<br>Fibre ${n1(fb)} g</div></div>
-    ${est ? `<div class="note"><b>Estimate.</b> Based on typical UK values${d.items.some(x => x.src === 'paste') ? ' and a pasted estimate' : ''}. Real values can differ by 20–30%. Use packet values for accuracy.${unknown ? ` Excludes ${unknown} item(s) with no values.` : ''}</div>` : ''}
-    <label for="mealNm">Meal name (optional)</label><input id="mealNm" value="${esc(d.name)}" placeholder="${esc(d.items.map(x => x.name).join(', '))}" onchange="S.draft.name=this.value;save()">
-    <button class="mt" onclick="confirmMeal()">${est ? 'Confirm estimate & save' : 'Confirm & save'}</button></div>` : ''}
-  <div class="card"><h2>Paste an estimate</h2><p class="mute">Photo analysis isn't built into this app. To use Claude Desktop: open a chat, attach the photo yourself (it's then processed by Anthropic under your Claude account), and paste this prompt:</p>
-    <pre>${esc(CLAUDE_PROMPT)}</pre><button class="sec" onclick="copyText(CLAUDE_PROMPT)">Copy prompt</button>
-    <textarea id="pasteText" rows="4" class="mt" placeholder="Chicken thigh | 150 | 314 | 39 | 0 | 16"></textarea><button class="sec mt" onclick="applyPaste()">Add pasted items to draft</button></div>
-  <button class="link" onclick="if(confirm('Discard this draft?')){S.draft=null;save();go('Food')}">Discard draft</button>`;
+        <button class="mt">Use packet values</button></form>` : ''}</li>`; }).join('')}</ul></div>
+  <div class="card"><div class="sec-h"><div><span class="big">${Math.round(k)}</span> kcal${est ? ' <span class="tag">estimate</span>' : ''}</div><div class="mute" style="text-align:right">P ${n1(p)} · C ${n1(c)} · F ${n1(f)} g<br>Fibre ${n1(fb)} g</div></div>
+    ${unknown ? `<p class="mute">${unknown} item(s) have no values yet: rename them or add packet values.</p>` : ''}
+    <button class="mt" onclick="confirmMeal()">Save ${d.slot ? d.slot.toLowerCase() : 'meal'}</button></div>
+  <details class="card more"><summary>Add more or correct</summary>${input('e.g. “that was chicken thigh, I only ate half the rice”').replace(/^<div class="card">|<\/div>$/g, '')}
+    <div class="grid2 mt"><button class="sec" onclick="speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Photo</button></div>
+    <label for="mealNm">Meal name (optional)</label><input id="mealNm" value="${esc(d.name)}" placeholder="${esc(d.items.map(x => x.name).join(', '))}" onchange="S.draft.name=this.value;save()"></details>
+  ${more}`;
 };
 const CLAUDE_PROMPT = 'Estimate the foods in this meal photo. Reply with one item per line, no other text, as: name | grams | kcal | protein g | carbs g | fat g | fibre g. Include cooking oil or sauce if visible, and say if unsure.';
 
