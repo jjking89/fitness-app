@@ -11,7 +11,7 @@ const reviewDue = () => { const n = londonNow(); return n.day === 'Sun' && n.hou
 const LOG_LISTS = ['meals', 'water', 'workouts', 'weights', 'steps', 'sleep'];
 function weekStrip() { // Sunday-first current week; tick = diary completed, dot = logged but not completed
   const logged = new Set(LOG_LISTS.flatMap(k => S[k].map(x => x.date))), t = today(), start = dayOffset(-new Date(t + 'T12:00').getDay());
-  return `<div class="wk">${[...Array(7)].map((_, i) => { const d = dayOffset(i, start), on = !!S.done?.[d], part = !on && logged.has(d);
+  return `<div class="wk">${[...Array(7)].map((_, i) => { const d = dayOffset(i, start), on = dayDone(d), part = !on && logged.has(d);
     return `<div class="${d === t ? 'now' : ''}" aria-label="${ukDate(d)}${on ? ', completed' : part ? ', partly logged' : ''}"><span>${'SMTWTFS'[i]}</span><i class="${on ? 'on' : part ? 'part' : ''}">${on ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12l4 4 8-8"/></svg>' : ''}</i></div>`; }).join('')}</div>`;
 }
 const MEAL_SLOTS = [['Breakfast', 'sun'], ['Lunch', 'bowl'], ['Dinner', 'moon'], ['Snacks', 'apple']];
@@ -38,10 +38,9 @@ screens.Today = () => {
   <div class="card mt"><div class="cal-h"><b>Calories</b><span class="mute">${kt ? (t.kcal <= kt ? gb(kt - t.kcal) + ' left' : gb(t.kcal - kt) + ' over') : 'no target'}</span></div>
     <div class="cal"><span class="big">${gb(t.kcal)}</span> cal${kt ? ` / ${gb(kt)}` : ''}</div>${kt ? mbar(t.kcal, kt, t.kcal > kt ? 'var(--warn)' : 'var(--acc)') : ''}</div>
   ${macroCard(t)}
-  <div class="card">${macroRow('Water', t.water, P().waterGoal, 'ml')}<div class="grid2 mt"><button class="sec" onclick="add('water',{ml:250})">+250 ml</button><button class="sec" onclick="add('water',{ml:500})">+500 ml</button></div></div>
+  <div class="card">${macroRow('Water', t.water, P().waterGoal, 'ml')}<div class="grid2 mt"><button class="sec" onclick="add('water',{ml:250})">+250 ml</button><button class="sec" onclick="add('water',{ml:500})">+500 ml</button></div>${completeBtn()}</div>
   <div class="sec-h"><h2>Diary</h2><button class="link" onclick="go('Food')">View all</button></div>
   ${MEAL_SLOTS.map(sl => mealSlotCard(sl, meals.filter(m => slotOf(m) === sl[0]))).join('')}
-  ${completeBtn()}
 `;
 };
 

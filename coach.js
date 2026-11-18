@@ -8,7 +8,7 @@ const r10 = v => Math.round(v / 10) * 10;
 
 // Average intake over fully-logged days (>= 1000 kcal) in the 14 days before `to`. Partly logged days are left out, not counted as low.
 function loggedIntake(to) {
-  const days = [...Array(14)].map((_, i) => dayOffset(-i - 1, to)).filter(d => sum(S.meals.filter(m => m.date === d), 'kcal') >= (S.done?.[d] ? 800 : 1000)).map(d => sum(S.meals.filter(m => m.date === d), 'kcal'));
+  const days = [...Array(14)].map((_, i) => dayOffset(-i - 1, to)).filter(d => sum(S.meals.filter(m => m.date === d), 'kcal') >= (dayDone(d) ? 800 : 1000)).map(d => sum(S.meals.filter(m => m.date === d), 'kcal'));
   return {n: days.length, avg: days.length ? days.reduce((a, b) => a + b, 0) / days.length : 0};
 }
 // Returns new targets, or null when there isn't enough data. Pure: doesn't change state.
@@ -182,9 +182,13 @@ function coachInsights(from) {
 }
 
 // ---------- complete today's diary (like MyFitnessPal) ----------
-const completeBtn = (d = today()) => S.done?.[d]
+const mainMeals = d => ['Breakfast', 'Lunch', 'Dinner'].every(sl => S.meals.some(m => m.date === d && slotOf(m) === sl));
+const dayDone = d => !!S.done?.[d] || mainMeals(d); // ticked by the button, or automatically once breakfast, lunch and dinner are logged
+const completeBtn = (d = today()) => !S.done?.[d] && mainMeals(d)
+  ? `<div class="donebar">✓ Breakfast, lunch and dinner logged: day complete</div>`
+  : S.done?.[d]
   ? `<div class="donebar">✓ Diary complete for today <button class="link" style="width:auto" onclick="delete S.done['${d}'];save();render()">Reopen</button></div>`
-  : `<button class="mt" onclick="completeDay('${d}')">Complete today's diary</button>`;
+  : `<button class="mt" onclick="completeDay('${d}')">✓ Complete today's entry</button>`;
 function completeDay(d = today()) {
   const eaten = dayTotals(d).kcal, w = allWeights().at(-1), tdee = S.coach.tdee || (w ? w.kg * 30 : 0);
   if (!eaten && !confirm('Nothing logged today. Mark it complete anyway?')) return;
