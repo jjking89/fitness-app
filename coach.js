@@ -135,6 +135,8 @@ screens.Settings = () => {
   <div class="card"><h2>AI coach (Claude)</h2><p class="mute">Coach chat, weekly advice and meal photos use Claude Sonnet 5.5 (about 0.3p a photo); food lookups and labels use Claude Haiku 5.5. Powers Ask coach and one-tap photo estimates. Get a key at console.anthropic.com. The key stays on this device only and is never in backups. Each send asks first, and costs pennies a month.</p>
     <input type="password" autocomplete="off" placeholder="${aiKey() ? 'Key saved: paste a new one to replace it' : 'sk-ant-…'}" onchange="setAiKey(this.value)" aria-label="Claude API key">
     ${aiKey() ? `<button class="link" onclick="if(confirm('Remove the API key from this device?'))setAiKey('')">Remove key</button>` : ''}
+    <label class="chk"><input type="checkbox" ${S.settings.menuUpdates ? 'checked' : ''} onchange="S.settings.menuUpdates=this.checked;save();if(this.checked)checkMenus(true)"> Check restaurant menus for new items once a month (about 20–40p)</label>
+    ${S.menuUpdates?.date ? `<p class="mute">Menus last checked ${ukDate(S.menuUpdates.date)} · ${S.menuUpdates.items.length} added so far <button class="link" style="width:auto" onclick="checkMenus(true)">Check now</button></p>` : ''}
     <label class="chk"><input type="checkbox" ${S.settings.photoAuto !== false && S.settings.photoConsent ? 'checked' : ''} onchange="S.settings.photoAuto=this.checked;S.settings.photoConsent=this.checked;save()"> Estimate meal photos automatically</label></div>
   <div class="card"><h2>Reminders</h2>${tog('Show the weekly review on Sunday from 9 am', 'reminder')}
     <p class="mute">The review is built for you either way. Calendar reminder: Health → Weekly review.</p></div>
