@@ -44,21 +44,23 @@ const COMPOUND = new Set(['Barbell back squat', 'Goblet squat', 'Leg press', 'Sm
   'Overhead press', 'Seated dumbbell press', 'Shoulder press machine']);
 const isCompound = n => COMPOUND.has(n);
 // experience: [compound sets, compound reps, compound rest s, accessory sets, accessory reps, accessory rest s]
-const VOLUME = {'New to it': [3, '8–10', 120, 2, '10–15', 60], 'Under 1 year': [3, '6–10', 150, 3, '10–12', 75], '1–3 years': [4, '5–8', 150, 3, '8–12', 75], '3+ years': [4, '5–8', 180, 3, '8–12', 75]};
+const VOLUME = {'New to it': [3, '8–10', 120, 2, '10–15', 60], 'Under 1 year': [3, '6–10', 150, 3, '10–12', 60], '1–3 years': [4, '5–8', 150, 3, '8–12', 60], '3+ years': [4, '5–8', 180, 3, '8–12', 60]};
 const WARMUP = 5, WORK_MIN = 1.25, MOVE_MIN = 1.5; // minutes: warm-up, one working set incl. loading/setup, moving between stations
-const restMin = items => items.reduce((t, i) => t + (i.sets - 1) * i.rest / 60, 0);
+// Supersets: accessory pairs done back to back ('a' then 'b'); rest only after the 'b' exercise.
+const restMin = items => items.reduce((t, i) => t + (i.ss === 'a' ? 0 : (i.sets - 1) * i.rest / 60), 0);
 function estMinutes(items, skipOptional = false) { // total time, rests included
   const it = items.filter(i => !(skipOptional && i.optional));
-  return Math.round(WARMUP + it.reduce((t, i) => t + i.sets * WORK_MIN + MOVE_MIN, 0) + restMin(it));
+  return Math.round(WARMUP + it.reduce((t, i) => t + i.sets * WORK_MIN + (i.ss === 'b' ? .5 : MOVE_MIN), 0) + restMin(it));
 }
 const liftMinutes = items => Math.round(estMinutes(items) - restMin(items)); // warm-up, sets and moving, no rests
 const timeLabel = items => `~${liftMinutes(items)} min workout · ~${estMinutes(items)} min with rests`;
 const accRank = n => (isCompound(n) ? 1 : 0) + (libOf(n)[2].every(e => e === 'Resistance bands') ? 2 : 0);
+const totalCap = () => +S.settings.totalCap || 60;
 // slots: 'C:Group' = compound, 'Group' = accessory, trailing '*' = optional
 function buildRoutine(name, slots, g, limit, prev = []) {
   const [cs, cr, crest, as, ar, arest] = VOLUME[P().experience] || VOLUME['Under 1 year'], used = [], items = [], missing = [];
   for (const slot of slots) {
-    const optional = slot.endsWith('*'), comp = slot.startsWith('C:'), group = slot.replace(/^C:|\*$/g, '');
+    const optional = slot.endsWith('*'), comp = slot.startsWith('C:'), group = slot.replace(/^C:|[*]$/g, '');
     const all = candidates(group, g, used).filter(x => comp ? isCompound(x) : true).sort((x, y) => comp ? 0 : accRank(x) - accRank(y)); // accessories: isolation first, then machine/free-weight compounds, then bodyweight/bands
     const c = [...all.filter(x => !prev.includes(x)), ...all.filter(x => prev.includes(x))]; // vary from the previous routine when possible
     if (!c.length) { missing.push(group); continue; }
@@ -66,15 +68,21 @@ function buildRoutine(name, slots, g, limit, prev = []) {
     items.push(comp ? {ex: c[0], sets: cs, reps: cr, rest: crest, alt: c[1] || '', optional: false, compound: true}
       : {ex: c[0], sets: optional ? 2 : as, reps: ar, rest: arest, alt: c[1] || '', optional});
   }
-  // fit the time cap: trim accessory sets (last first), then drop the optional one, then the last accessory. Compounds stay.
-  for (let i = items.length - 1; liftMinutes(items) > limit && i >= 0; i--) if (!items[i].compound && items[i].sets > 2) { items[i].sets--; i = items.length; }
-  if (liftMinutes(items) > limit) { const o = items.findIndex(i => i.optional); if (o > -1) items.splice(o, 1); }
-  while (liftMinutes(items) > limit && items.length > 3 && !items.at(-1).compound) items.pop();
-  // use the time you have: add sets (accessories first, max 4; then compounds, max 5) while it still fits
+  // pair accessories into supersets (1+2, 3+4 …) with matching sets
+  const acc = items.filter(i => !i.compound);
+  for (let k = 0; k + 1 < acc.length; k += 2) { acc[k].ss = 'a'; acc[k + 1].ss = 'b'; acc[k + 1].sets = acc[k].sets = Math.min(acc[k].sets, acc[k + 1].sets); }
+  const over = () => liftMinutes(items) > limit || estMinutes(items) > totalCap();
+  const partner = it => it.ss === 'a' ? items[items.indexOf(it) + 1] : it.ss === 'b' ? items[items.indexOf(it) - 1] : null;
+  const bump = (it, d) => { it.sets += d; const p = partner(it); if (p) p.sets = it.sets; };
+  // fit both caps: trim accessory sets (last first), then drop the optional one, then the last accessory. Compounds stay.
+  for (let i = items.length - 1; over() && i >= 0; i--) if (!items[i].compound && items[i].sets > 2) { bump(items[i], -1); i = items.length; }
+  if (over()) { const o = items.findIndex(i => i.optional); if (o > -1) { const p = partner(items[o]); if (p) delete p.ss; items.splice(o, 1); } }
+  while (over() && items.length > 3 && !items.at(-1).compound) { const l = items.pop(); if (l.ss === 'b') delete items.at(-1).ss; }
+  // use the time you have: add sets (accessories first, max 4; then compounds, max 5) while both caps hold
   for (let grew = true; grew;) { grew = false;
-    for (const it of [...items.filter(i => !i.compound), ...items.filter(i => i.compound)]) {
+    for (const it of [...items.filter(i => !i.compound && i.ss !== 'b'), ...items.filter(i => i.compound)]) {
       if (it.sets >= (it.compound ? 5 : 4)) continue;
-      it.sets++; if (liftMinutes(items) > limit) it.sets--; else grew = true;
+      bump(it, 1); if (over()) bump(it, -1); else grew = true;
     } }
   return {id: uid(), name, items, missing, generated: true, gymId: g.id};
 }
@@ -243,7 +251,7 @@ function newItem(spec) {
   const s = typeof spec === 'string' ? {ex: spec, sets: 3, reps: '', rest: restOf(spec), alt: '', optional: false} : spec, lt = lastTime(s.ex);
   const sets = Array.from({length: Math.max(1, s.sets || 3)}, (_, j) => { const w = lt?.[Math.min(j, lt.length - 1)]; return {reps: w?.reps || '', kg: w?.kg || '', done: false, logId: null}; });
   if (s.rest) S.rest[s.ex] = s.rest;
-  return {ex: s.ex, target: s.reps, alt: s.alt, optional: s.optional, note: '', sets};
+  return {ex: s.ex, target: s.reps, alt: s.alt, optional: s.optional, ss: s.ss || '', note: '', sets};
 }
 function todaysRoutine() { const d = DAYS[(new Date().getDay() + 6) % 7]; return S.routines.find(r => r.id == S.week.days[d]); }
 function startWorkout(routineId) {
@@ -268,7 +276,8 @@ function toggleSet(i, j) {
   else {
     const w = {id: uid(), date: S.active.date, session: S.active.id, gymId: S.active.gymId, exercise: it.ex, reps: s.reps, kg: s.kg, note: it.note || ''};
     S.workouts.push(w); s.done = true; s.logId = w.id;
-    if (S.settings.autoRest) startTimer(restOf(it.ex), it.ex);
+    const nx = S.active.items[i + 1];
+    if (S.settings.autoRest && !(it.ss === 'a' && nx?.ss === 'b' && nx.sets.some(x => !x.done))) startTimer(restOf(it.ex), it.ex);
   }
   save(); render();
 }
@@ -332,7 +341,7 @@ screens.Training = () => {
 const est1RM = r => r ? n1(r.kg * (1 + r.reps / 30)) : null; // Epley, from best logged set
 const rbtn = (icon, label, act) => `<button class="rnd" onclick="${act}" aria-label="${label}">${ic(IC[icon])}</button>`;
 function activeWorkout() {
-  const a = S.active, curIdx = a.items.findIndex(it => it.sets.some(s => !s.done)), mins = Math.round((Date.now() - a.started) / 60000);
+  const a = S.active, curIdx = ssNext(a, a.items.findIndex(it => it.sets.some(s => !s.done))), mins = Math.round((Date.now() - a.started) / 60000);
   const ci = curIdx < 0 ? a.items.length - 1 : curIdx, cj = curIdx < 0 ? -1 : a.items[curIdx].sets.findIndex(s => !s.done), cex = a.items[ci]?.ex;
   return `<div class="wtop">${rbtn('back', 'Back to Today', "go('Today')")}<span></span>${rbtn('stats', 'Progress and best lifts', "go('Progress')")}${cex ? rbtn('swap', 'Equipment busy, show swaps', `busyFor=busyFor===${ci}?null:${ci};render()`) : ''}${rbtn('more', 'Save as reusable workout', 'saveAsRoutine()')}</div>
   <div class="wprog" aria-label="Exercise ${ci + 1} of ${a.items.length}">${a.items.map((_, i) => `<i class="${i < ci || curIdx < 0 ? 'done' : i === ci ? 'now' : ''}"></i>`).join('')}</div>
@@ -340,7 +349,7 @@ function activeWorkout() {
   ${a.items.map((it, i) => {
     const lt = lastTime(it.ex), pr = S.records[it.ex], alts = busyFor === i ? alternatives(it.ex) : null, rm = est1RM(pr);
     return `<div class="card ${i === curIdx ? 'cur' : ''}"><div class="exh"><h2>${i + 1}. ${esc(it.ex)}${prefTag(it.ex)}${it.optional ? '<span class="tag">optional</span>' : ''}</h2>${rm ? `<span class="rm">est. 1RM: ${gb(rm)}</span>` : ''}</div>
-    <div class="mute">${it.target ? 'Target: ' + it.sets.length + ' × ' + esc(it.target) + ' · ' : ''}Last time: ${lt ? lt.map(w => `${w.reps || '?'}×${w.kg || 0}`).join(', ') + ' kg' : '—'}<br>Best: ${pr ? `${pr.kg} kg × ${pr.reps} (${ukDate(pr.date)})` : '—'}</div>
+    <div class="mute">${it.ss ? `<span class="tag">superset ${it.ss === 'a' ? '1/2: then go straight to the next exercise' : '2/2: rest after this'}</span><br>` : ''}${it.target ? 'Target: ' + it.sets.length + ' × ' + esc(it.target) + ' · ' : ''}Last time: ${lt ? lt.map(w => `${w.reps || '?'}×${w.kg || 0}`).join(', ') + ' kg' : '—'}<br>Best: ${pr ? `${pr.kg} kg × ${pr.reps} (${ukDate(pr.date)})` : '—'}</div>
     ${it.sets.map((s, j) => `<div class="wset ${s.done ? 'done' : ''} ${i === curIdx && j === cj ? 'now' : ''}"><span class="badge ${s.warmup ? 'w' : ''}">${s.warmup ? 'W' : j + 1}</span>
       <label class="num"><input type="number" inputmode="decimal" step="0.5" value="${esc(s.kg)}" onchange="setVal(${i},${j},'kg',this.value)" aria-label="kg, set ${j + 1}"><small>kg</small></label>
       <label class="num"><input type="number" inputmode="numeric" value="${esc(s.reps)}" onchange="setVal(${i},${j},'reps',this.value)" aria-label="Reps, set ${j + 1}"><small>reps</small></label>
@@ -360,7 +369,7 @@ function activeWorkout() {
 }
 
 // ---------- Jefit-style plan view: today's workout ready to go, the week's plan, and a manual section ----------
-const exLine = i => { const s = typeof i === 'string' ? {ex: i} : i; return `<li class="exl"><span class="exn">${esc(s.ex)}${s.compound ? ' <span class="tag">compound</span>' : ''}${s.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="mute">${s.sets || 3} sets × ${esc(s.reps || '8–12')} reps · rest ${S.rest[s.ex] ?? s.rest ?? restOf(s.ex)} s</span></span></li>`; };
+const exLine = i => { const s = typeof i === 'string' ? {ex: i} : i; return `<li class="exl"><span class="exn">${esc(s.ex)}${s.compound ? ' <span class="tag">compound</span>' : ''}${s.ss ? ` <span class="tag">superset ${s.ss === 'a' ? '1/2' : '2/2'}</span>` : ''}${s.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="mute">${s.sets || 3} sets × ${esc(s.reps || '8–12')} reps · rest ${S.rest[s.ex] ?? s.rest ?? restOf(s.ex)} s</span></span></li>`; };
 let openPlan = null;
 function planCards(tr) {
   const gen = S.routines.filter(r => r.generated), dayOf = r => DAYS.filter(d => S.week.days[d] == r.id).join(', ');
@@ -401,4 +410,10 @@ function rebuildPlan() {
   const w = planWeek();
   if (S.plan?.start && w < 4 && !confirm(`You're in week ${w} of ${S.plan.weeks}. Sticking with one plan for at least 4 weeks makes your progress clear. Rebuild anyway?`)) return;
   go('Generate');
+}
+
+// In a superset, once the 'a' exercise is ahead of its partner, the partner is next.
+function ssNext(a, i) {
+  const it = a.items[i], nx = a.items[i + 1], done = x => x.sets.filter(s => s.done).length;
+  return it?.ss === 'a' && nx?.ss === 'b' && done(it) > done(nx) && nx.sets.some(s => !s.done) ? i + 1 : i;
 }
