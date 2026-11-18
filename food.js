@@ -209,7 +209,7 @@ function confirmMeal() {
   if (recent && !confirm(`An identical meal was saved at ${new Date(recent.savedAt).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}. Save it again?`)) return;
   saving = true;
   const [k, p, c, f, fb] = draftTotals(d.items), est = d.items.some(x => x.src !== 'packet');
-  S.meals.push({id: uid(), date: today(), name: d.name || d.items.map(x => x.name).join(', '), portion: d.items.map(x => `${x.grams} g ${x.name}`).join(', '),
+  S.meals.push({id: uid(), date: d.date || today(), name: d.name || d.items.map(x => x.name).join(', '), portion: d.items.map(x => `${x.grams} g ${x.name}`).join(', '),
     kcal: Math.round(k), protein: n1(p), carbs: n1(c), fat: n1(f), fibre: n1(fb), slot: d.slot || '', est, items: d.items, photo: d.photos[0] || '', draftId: d.id, itemSig: sigv, savedAt: Date.now()});
   S.draft = null; save(); saving = false; go('Food');
 }
@@ -265,7 +265,9 @@ const pick = (o, ks) => Object.fromEntries(ks.map(k => [k, o[k] ?? '']));
 const mealInfo = m => [m.portion, `${m.kcal || 0} kcal`, `P ${m.protein || 0} g`, `C ${m.carbs || 0} g`, `F ${m.fat || 0} g`, `Fibre ${m.fibre || 0} g`].filter(Boolean).map(esc).join(' · ');
 const repeatMeal = m => { S.meals.push({id: uid(), date: today(), ...pick(m, MEAL_KEYS), savedAt: Date.now()}); save(); render(); };
 function favMeal(id) { const m = S.meals.find(x => x.id == id); if (S.favs.some(f => f.name === m.name)) return alert('Already a favourite.'); S.favs.push({id: uid(), date: today(), ...pick(m, MEAL_KEYS)}); save(); render(); }
-const mealActions = () => `${MEAL_SLOTS.map(sl => mealSlotCard(sl, S.meals.filter(m => m.date === today() && slotOf(m) === sl[0]))).join('')}${completeBtn()}
+let foodDay = null; const fDay = () => foodDay || today();
+const dayNav = () => `<div class="daynav"><button class="link" onclick="foodDay=dayOffset(-1,fDay());render()" aria-label="Previous day">‹</button><b>${fDay() === today() ? 'Today' : ukDate(fDay())}</b><button class="link" ${fDay() === today() ? 'disabled' : ''} onclick="foodDay=dayOffset(1,fDay());if(foodDay>=today())foodDay=null;render()" aria-label="Next day">›</button></div>`;
+const mealActions = () => `${dayNav()}${MEAL_SLOTS.map(sl => mealSlotCard(sl, S.meals.filter(m => m.date === fDay() && slotOf(m) === sl[0]), true)).join('')}${completeBtn(fDay())}
   ${S.draft ? `<button class="sec mt" onclick="go('Meal')">Continue draft (${S.draft.items.length} item${S.draft.items.length === 1 ? '' : 's'})</button>` : ''}`;
 function dayTotals(d = today()) { const m = S.meals.filter(x => x.date === d); return {kcal: sum(m, 'kcal'), protein: sum(m, 'protein'), carbs: sum(m, 'carbs'), fat: sum(m, 'fat'), fibre: sum(m, 'fibre'), water: sum(S.water.filter(x => x.date === d), 'ml'), n: m.length}; }
 
@@ -276,8 +278,6 @@ screens.Food = () => {
   ${macroCard(t)}${mealActions()}${quickFood()}
   ${S.favs.length ? `<div class="card"><h2>Favourites</h2><ul>${S.favs.map(f => `<li><span>⭐ ${esc(f.name)}<br><span class="mute">${mealInfo(f)}</span></span><span style="white-space:nowrap"><button onclick="repeatMeal(${js(f)})">+ Add</button><button onclick="S.favs=S.favs.filter(x=>x.id!=${f.id});save();render()" aria-label="Remove favourite">✕</button></span></li>`).join('')}</ul></div>` : ''}
   
-  <div class="card"><h2>Diary</h2><ul>${S.meals.slice().sort(byDateDesc).slice(0, 25).map(m => `<li><span>${m.photo ? `<img class="thumb" src="${m.photo}" alt=""> ` : ''}${esc(m.name)}${m.est ? '<span class="tag">estimate</span>' : ''}<br><span class="mute">${mealInfo(m)}<br>${ukDate(m.date)}</span></span>
-    <span style="white-space:nowrap"><button onclick="repeatMeal(${js(pick(m, MEAL_KEYS))})" aria-label="Repeat today">↻</button><button onclick="favMeal(${m.id})" aria-label="Add to favourites">☆</button><button onclick="editEntry('meals',${m.id})">Edit</button><button onclick="del('meals',${m.id})" aria-label="Delete">✕</button></span></li>`).join('') || '<li class="mute">Nothing logged yet</li>'}</ul></div>
   <details class="card more"><summary>Water log</summary><ul>${items('water', w => w.ml + ' ml', 8)}</ul></details>`;
 };
 
@@ -385,4 +385,4 @@ screens.Device = () => {
   <p class="mute">${esc(navigator.userAgent)}</p>
   <button class="sec" onclick="navigator.storage?.persist?.().then(ok=>alert(ok?'Browser agreed to keep this data.':'Browser did not grant persistent storage. Keep regular backups.'))">Ask browser to keep my data</button></div>`;
 };
-function logMeal(slot) { S.draft ||= newDraft(); S.draft.slot = slot; save(); go('Meal'); }
+function logMeal(slot) { S.draft ||= newDraft(); S.draft.slot = slot; S.draft.date = cur === 'Food' ? fDay() : today(); save(); go('Meal'); }

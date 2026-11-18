@@ -188,8 +188,8 @@ const dayDone = d => !!S.done?.[d] || mainMeals(d); // ticked by the button, or 
 const completeBtn = (d = today()) => !S.done?.[d] && mainMeals(d)
   ? `<div class="donebar">✓ Breakfast, lunch and dinner logged: day complete</div>`
   : S.done?.[d]
-  ? `<div class="donebar">✓ Diary complete for today <button class="link" style="width:auto" onclick="delete S.done['${d}'];save();render()">Reopen</button></div>`
-  : `<button class="mt" onclick="completeDay('${d}')">✓ Complete today's entry</button>`;
+  ? `<div class="donebar">✓ Diary complete for ${d === today() ? 'today' : ukDate(d)} <button class="link" style="width:auto" onclick="delete S.done['${d}'];save();render()">Reopen</button></div>`
+  : `<button class="mt" onclick="completeDay('${d}')">✓ Complete ${d === today() ? "today's" : ukDate(d)} entry</button>`;
 function completeDay(d = today()) {
   const eaten = dayTotals(d).kcal, w = allWeights().at(-1), tdee = S.coach.tdee || (w ? w.kg * 30 : 0);
   if (!eaten && !confirm('Nothing logged today. Mark it complete anyway?')) return;

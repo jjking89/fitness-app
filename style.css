@@ -201,3 +201,9 @@ details.more[open]>summary::before{content:'－ '}
 .wk i.part::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--acc)}
 .wk i.part{display:grid;place-items:center}
 .donebar{display:flex;justify-content:space-between;align-items:center;margin-top:var(--s2);padding:var(--s2) var(--s3);border-radius:var(--r);background:var(--acc-soft);color:var(--acc);font-weight:600}
+
+.card.meal{flex-wrap:wrap}
+.entries{width:100%;margin-top:var(--s2);border-top:1px solid var(--line)}
+.entries li{font-size:15px}
+.daynav{display:flex;align-items:center;justify-content:space-between;margin:0 0 var(--s2)}
+.daynav button{width:auto;font-size:28px;min-width:48px}

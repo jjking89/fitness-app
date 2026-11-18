@@ -16,11 +16,13 @@ function weekStrip() { // Sunday-first current week; tick = diary completed, dot
 }
 const MEAL_SLOTS = [['Breakfast', 'sun'], ['Lunch', 'bowl'], ['Dinner', 'moon'], ['Snacks', 'apple']];
 const slotOf = m => { if (m.slot) return m.slot; if (!m.savedAt) return 'Snacks'; const h = new Date(m.savedAt).getHours(); return h < 11 ? 'Breakfast' : h < 16 ? 'Lunch' : h < 21 ? 'Dinner' : 'Snacks'; }; // display-only grouping
-function mealSlotCard([slot, icon], list) {
+function mealSlotCard([slot, icon], list, detail = false) {
   const k = sum(list, 'kcal'), c = sum(list, 'carbs') * 4, f = sum(list, 'fat') * 9, p = sum(list, 'protein') * 4, e = c + f + p, pc = v => e ? Math.round(v / e * 100) : 0;
   const first = list[0], n = first ? (first.items?.length > 1 ? first.items.length : list.length) : 0, label = first ? (first.items?.[0]?.name || first.name) : '';
   return `<div class="card meal"><span class="mic">${ic(IC[icon])}</span><div class="mb"><b>${slot}</b><div class="mute">${first ? esc(label) + (n > 1 ? ` and ${n - 1} more` : '') : 'Nothing logged'}</div>
-    ${first ? `<div class="mute">${gb(k)} kcal · C ${pc(c)}% · F ${pc(f)}% · P ${pc(p)}%</div>` : ''}</div><button class="pill" onclick="logMeal('${slot}')" aria-label="Log ${slot}">Log</button></div>`;
+    ${first ? `<div class="mute">${gb(k)} kcal · C ${pc(c)}% · F ${pc(f)}% · P ${pc(p)}%</div>` : ''}</div><button class="pill" onclick="logMeal('${slot}')" aria-label="Log ${slot}">${detail && first ? '+ Add' : 'Log'}</button>
+    ${detail && first ? `<ul class="entries">${list.map(m => `<li><span>${m.photo ? `<img class="thumb" src="${m.photo}" alt=""> ` : ''}${esc(m.name)}${m.est ? ' <span class="tag">estimate</span>' : ''}<br><span class="mute">${gb(m.kcal)} kcal · P ${gb(m.protein)} · C ${gb(m.carbs)} · F ${gb(m.fat)} g</span></span>
+      <span style="white-space:nowrap"><button onclick="favMeal(${m.id})" aria-label="Add to favourites">☆</button><button onclick="editEntry('meals',${m.id})" aria-label="Edit">Edit</button><button onclick="del('meals',${m.id})" aria-label="Delete">✕</button></span></li>`).join('')}</ul>` : ''}</div>`;
 }
 const mbar = (have, t, col) => `<div class="bar sm"><div style="width:${+t ? Math.min(100, have / t * 100) : 0}%;background:${col}"></div></div>`;
 function macroCard(t) { // display only; fibre shows '–' until totals/targets carry it
