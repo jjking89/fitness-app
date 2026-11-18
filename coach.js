@@ -135,6 +135,7 @@ screens.Settings = () => {
     <label class="chk"><input type="checkbox" ${S.settings.photoAuto !== false && S.settings.photoConsent ? 'checked' : ''} onchange="S.settings.photoAuto=this.checked;S.settings.photoConsent=this.checked;save()"> Estimate meal photos automatically</label></div>
   <div class="card"><h2>Reminders</h2>${tog('Show the weekly review on Sunday from 9 am', 'reminder')}
     <p class="mute">The review is built for you either way. Calendar reminder: Health → Weekly review.</p></div>
+  <p class="mute center">App version ${typeof APP_V === 'undefined' ? '?' : new Date(+APP_V * 1000).toLocaleString('en-GB', {dateStyle: 'short', timeStyle: 'short'})}</p>
   <div class="card"><h2>More</h2><div class="grid2"><button class="sec" onclick="go('Profile')">Profile answers</button><button class="sec" onclick="go('Backup')">Backup &amp; restore</button>
     <button class="sec" onclick="go('Device')">Check this device</button><button class="sec" onclick="demo()">Load test data</button></div></div>`;
 };
