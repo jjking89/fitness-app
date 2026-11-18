@@ -25,8 +25,8 @@ function calcTargets() {
     how = `your logged food (${intake.n} full days, avg ${gb(intake.avg)} kcal) and weight change (${rate > 0 ? '+' : ''}${rate.toFixed(2)} kg/week)`;
   } else if (old) { tdee = old; how = `last week's estimate (need 5 fully logged days and two weigh-ins 5+ days apart to update it)`; }
   const gw = +P().goalWeight, perWk = +P().kgPerWeek, dir = gw ? Math.sign(gw - kg) : (P().goal === 'Build muscle' ? 1 : -1);
-  const wkRate = gw && Math.abs(gw - kg) < .5 ? 0 : perWk ? dir * Math.min(perWk, kg * 0.01) : (GOAL_RATE[P().goal] || 0) * kg; // kg/week; user's pace capped at 1% of body weight
-  const goalAdj = Math.max(-1000, Math.min(500, wkRate * KCAL_PER_KG / 7));
+  const wkRate = gw && Math.abs(gw - kg) < .5 ? 0 : perWk ? dir * perWk : (GOAL_RATE[P().goal] || 0) * kg; // kg/week as chosen; the calorie floor below limits how far it can go
+  const goalAdj = Math.max(-2200, Math.min(500, wkRate * KCAL_PER_KG / 7));
   let kcal = tdee + goalAdj, cur = +P().kcal;
   if (cur) kcal = Math.max(cur - MAX_STEP, Math.min(cur + MAX_STEP, kcal));
   kcal = r10(Math.max(KCAL_FLOOR, kcal));
@@ -97,7 +97,7 @@ const setS = (k, v) => { S.settings[k] = v; save(); render(); };
 const num = (label, val, on, step = 1, unit = '') => `<label>${label}</label><div class="row" style="align-items:center"><input type="number" inputmode="decimal" step="${step}" value="${val ?? ''}" onchange="${on}" style="flex:3">${unit ? `<span class="mute" style="flex:0 0 auto">${unit}</span>` : ''}</div>`;
 const tog = (label, k) => `<label class="chk"><input type="checkbox" ${S.settings[k] ? 'checked' : ''} onchange="setS('${k}',this.checked)"> ${label}</label>`;
 function goalInfo() {
-  const w = allWeights().at(-1), g = +P().goalWeight, r = w && +P().kgPerWeek ? +Math.min(+P().kgPerWeek, w.kg * .01).toFixed(2) : 0;
+  const w = allWeights().at(-1), g = +P().goalWeight, r = w && +P().kgPerWeek ? +P().kgPerWeek : 0;
   if (!w || !g) return '';
   const left = Math.abs(w.kg - g);
   return `<p class="mute">${left < .5 ? 'You are at your goal weight. Targets now hold your weight.' : `${left.toFixed(1)} kg to go${r ? ` · about ${Math.ceil(left / r)} weeks at ${r} kg/week` : ''}.`}</p>`;
@@ -109,10 +109,10 @@ screens.Settings = () => {
   <div class="card"><h2>Weight goal</h2>
     <label>Main goal</label><select onchange="S.profile.goal=this.value;save();render()">${QUESTIONS.find(q => q[0] === 'goal')[3].map(o => `<option ${P().goal === o ? 'selected' : ''}>${o}</option>`).join('')}</select>
     ${num('Goal weight', P().goalWeight, "S.profile.goalWeight=+this.value||'';retarget()", .1, 'kg')}
-    <label>How fast</label><div class="chips">${['Slow (about 0.25 kg a week)', 'Medium (about 0.5 kg a week)', 'Fast (about 0.75 kg a week)'].map(o => `<button class="chip ${P().pace === o ? 'on' : ''}" onclick="S.profile.pace=${esc(js(o))};S.profile.kgPerWeek=${o.match(/0\.\d+/)[0]};retarget()">${o.split(' (')[0]}<br><small>${o.match(/\((.*)\)/)[1]}</small></button>`).join('')}</div>
+    <label>How fast</label><div class="chips">${['Slow (about 1 kg a week)', 'Medium (about 1.5 kg a week)', 'Fast (about 2 kg a week)'].map(o => `<button class="chip ${P().pace === o ? 'on' : ''}" onclick="S.profile.pace=${esc(js(o))};S.profile.kgPerWeek=${o.match(/\d+(?:\.\d+)?(?= kg)/)[0]};retarget()">${o.split(' (')[0]}<br><small>${o.match(/\((.*)\)/)[1]}</small></button>`).join('')}</div>
     ${num('Or exact kg per week', P().kgPerWeek, "S.profile.kgPerWeek=+this.value||'';S.profile.pace='';retarget()", .05, 'kg/week')}
-    <p class="mute">Leave blank to use the default for your goal. Auto-targets cap this at 1% of your body weight a week.</p>
-    ${fast ? `<div class="note">${r} kg a week is more than 1% of your body weight. Auto-targets will use ${(w.kg * .01).toFixed(2)} kg a week.</div>` : ''}
+    <p class="mute">Calories never go below 1,500 a day, so on Fast your real rate may be a little slower. Early weeks often drop faster (water).</p>
+    ${+P().kgPerWeek > 1 && (S.health.med.enabled || has(P().clinician) || S.health.notes.length) ? `<div class="note">With your heart care and medication, check a pace over 1 kg a week with your care team.</div>` : ''}
     ${goalInfo()}</div>
   <div class="card"><h2>Daily targets</h2>
     ${tog('Update targets automatically after each weekly weigh-in', 'autoTargets')}
