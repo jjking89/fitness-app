@@ -66,6 +66,7 @@ function coachCard() {
     <div class="grid2"><button onclick="S.coach.history.at(-1).seen=true;save();render()">OK</button><button class="sec" onclick="undoTargets()">Undo</button></div></div>`);
   if (P().done && S.settings.autoTargets == null) out.push(`<div><b>Let me set your targets each week?</b><p class="mute">After each weekly weigh-in I'll update calories, protein, carbs, fat and fibre from your weight trend and the food you log. Changes are small (max ${MAX_STEP} kcal a week), never below ${KCAL_FLOOR} kcal, and you can undo them. ${S.health.med.enabled || has(P().clinician) ? 'You have care-team guidance or medication logged: check automatic targets with them.' : ''}</p>
     <div class="grid2"><button onclick="S.settings.autoTargets=true;save();render()">Yes, do it for me</button><button class="sec" onclick="S.settings.autoTargets=false;save();render()">No thanks</button></div>`);
+  if (S.plan?.start && planWeek() > S.plan.weeks) out.push(`<div><b>Your ${S.plan.weeks}-week plan is done 🎉</b><p class="mute">Time for a fresh block with new exercises.</p><button onclick="go('Generate')">Build my next plan</button></div>`);
   if (weighDue()) out.push(`<form onsubmit="event.preventDefault();add('weights',{kg:this.kg.value,source:'Weekly weigh-in'})"><b>Weekly weigh-in</b><p class="mute">Same time, after the loo, before food.</p>
     <div class="row"><input name="kg" type="number" step="0.1" inputmode="decimal" placeholder="kg" required aria-label="Weight in kg"><button style="flex:0 0 auto;width:auto">Save</button></div></form>`);
   if (tr && !S.active && !S.workouts.some(w => w.date === today())) out.push(`<div><b>${esc(tr.name)} today</b> <span class="mute">~${estMinutes(tr.items)} min</span><button class="mt" onclick="startWorkout(${tr.id})">Start workout</button></div>`);
@@ -119,9 +120,10 @@ screens.Settings = () => {
     <p class="mute">You can change any target by hand. The next weekly update starts from what you set.</p>
     ${S.coach.history.length && !S.coach.history.at(-1).undone ? `<button class="sec mt" onclick="if(confirm('Go back to the targets before the last automatic update?'))undoTargets()">Undo last automatic update (${ukDate(S.coach.history.at(-1).date)})</button>` : ''}</div>
   <div class="card"><h2>Workouts</h2>
-    ${num('Session length', P().session, "setP('session',this.value)", 5, 'min')}
+    ${num('Session length, rests included', P().session, "setP('session',this.value)", 5, 'min')}
     ${num('Default rest between sets', S.settings.restDefault, "setS('restDefault',+this.value||'')", 15, 'sec')}
     <p class="mute">Blank uses a sensible rest for each exercise (longer for big lifts).</p>
+    <label>Stick with each plan for</label><select onchange="setS('planWeeks',+this.value);if(S.plan)S.plan.weeks=+this.value;save()">${[4, 5, 6].map(n => `<option value="${n}" ${(+S.settings.planWeeks || 6) === n ? 'selected' : ''}>${n} weeks</option>`).join('')}</select>
     ${tog('Start the rest timer when I tick a set', 'autoRest')}${tog('Sound when rest ends', 'sound')}${tog('Vibrate when rest ends (not on iPhone)', 'vibrate')}
     ${exs.length ? `<h3>Rest per exercise</h3>${exs.map(e => num(esc(e), restOf(e), `S.rest[${js(e)}]=+this.value||undefined;if(!S.rest[${js(e)}])delete S.rest[${js(e)}];save();render()`, 15, 'sec')).join('')}` : ''}</div>
   <div class="card"><h2>AI coach (Claude)</h2><p class="mute">Powers Ask coach and one-tap photo estimates. Get a key at console.anthropic.com. The key stays on this device only and is never in backups. Each send asks first, and costs a few pence.</p>

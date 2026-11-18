@@ -21,11 +21,11 @@ const QUESTIONS = [
   ['fibre', 'Do you already use a daily fibre target? (g)', 'number'],
   ['clinician', 'Any current guidance from a doctor, physio or other clinician that affects training? (You can add dated notes in Health later.)', 'textarea'],
 ];
-const EXTRA = [['session', 'Session length (min)'], ['carbs', 'Carbs target (g/day)'], ['fat', 'Fat target (g/day)'], ['waterGoal', 'Water goal (ml/day)'], ['stepGoal', 'Step goal (per day)']];
+const EXTRA = [['session', 'Session length, rests included (min)'], ['carbs', 'Carbs target (g/day)'], ['fat', 'Fat target (g/day)'], ['waterGoal', 'Water goal (ml/day)'], ['stepGoal', 'Step goal (per day)']];
 
 const uid = () => Date.now() + Math.random();
 const blank = () => ({
-  v: VERSION, profile: {session: 45}, iv: 0,
+  v: VERSION, profile: {session: 60}, iv: 0,
   weights: [], body: [], meals: [], favs: [], water: [], steps: [], sleep: [], workouts: [], routines: [], reviews: [],
   gyms: [], gymId: null, prefs: {}, rest: {}, week: {days: {}}, active: null, timer: null, records: {},
   mealPlan: {slots: {}, ticks: {}}, pending: null, coach: {history: [], tdee: null},
@@ -43,6 +43,7 @@ function migrate() { // only adds missing structure; never removes saved data
     S.gyms = ['Anytime Fitness', 'Other gym', 'Home'].map(name => ({id: uid(), name, equipment: EQUIP.map(e => ({name: e, status: 'unconfirmed'})), listing: '', photos: [], confirmedAt: ''}));
     S.gymId = S.gyms[0].id;
   }
+  if (S.profile.session == 45 && !S.profile.session60) S.profile.session = 60; S.profile.session60 = true; // 45 min lifting ≈ 60 min with rests
   S.v = VERSION;
 }
 function recomputeRecords() { // best lift derived from the set log, so corrections and deletions always update it

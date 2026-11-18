@@ -36,30 +36,53 @@ function candidates(group, g, exclude = []) {
 }
 const alternatives = ex => candidates(libOf(ex)[1], gym(), [ex]);
 
-// ---------- 45-minute routine generator ----------
-const VOLUME = {'New to it': [2, '10–12'], 'Under 1 year': [3, '8–12'], '1–3 years': [3, '6–10'], '3+ years': [3, '6–10']};
+// ---------- Routine generator: compound lifts first, time-capped ----------
+// Evidence-based defaults: 1–2 big compound lifts first while fresh (heavier, longer rest), then 3–4 accessories
+// (moderate reps, short rest), each muscle trained about twice a week, sets taken close to failure (1–3 reps in reserve).
+const COMPOUND = new Set(['Barbell back squat', 'Goblet squat', 'Leg press', 'Smith machine squat', 'Romanian deadlift', 'Dumbbell Romanian deadlift',
+  'Barbell bench press', 'Dumbbell bench press', 'Chest press machine', 'Lat pulldown', 'Pull-up', 'Seated cable row', 'One-arm dumbbell row',
+  'Overhead press', 'Seated dumbbell press', 'Shoulder press machine']);
+const isCompound = n => COMPOUND.has(n);
+// experience: [compound sets, compound reps, compound rest s, accessory sets, accessory reps, accessory rest s]
+const VOLUME = {'New to it': [3, '8–10', 120, 2, '10–15', 60], 'Under 1 year': [3, '6–10', 150, 3, '10–12', 75], '1–3 years': [4, '5–8', 150, 3, '8–12', 75], '3+ years': [4, '5–8', 180, 3, '8–12', 75]};
 const WARMUP = 5, WORK_MIN = .75, MOVE_MIN = 1.5; // minutes: warm-up, one working set, moving between stations
-function estMinutes(items, skipOptional = false) {
-  return Math.round(WARMUP + items.filter(i => !(skipOptional && i.optional)).reduce((t, i) => t + i.sets * WORK_MIN + (i.sets - 1) * i.rest / 60 + MOVE_MIN, 0));
+const restMin = items => items.reduce((t, i) => t + (i.sets - 1) * i.rest / 60, 0);
+function estMinutes(items, skipOptional = false) { // total time, rests included
+  const it = items.filter(i => !(skipOptional && i.optional));
+  return Math.round(WARMUP + it.reduce((t, i) => t + i.sets * WORK_MIN + MOVE_MIN, 0) + restMin(it));
 }
+const liftMinutes = items => Math.round(estMinutes(items) - restMin(items)); // warm-up, sets and moving, no rests
+const timeLabel = items => `~${estMinutes(items)} min incl. rests`;
+const accRank = n => (isCompound(n) ? 1 : 0) + (libOf(n)[2].every(e => e === 'Resistance bands') ? 2 : 0);
+// slots: 'C:Group' = compound, 'Group' = accessory, trailing '*' = optional
 function buildRoutine(name, slots, g, limit, prev = []) {
-  const [sets, reps] = VOLUME[P().experience] || [3, '8–12'], used = [], items = [], missing = [];
+  const [cs, cr, crest, as, ar, arest] = VOLUME[P().experience] || VOLUME['Under 1 year'], used = [], items = [], missing = [];
   for (const slot of slots) {
-    const optional = slot.endsWith('*'), group = slot.replace('*', ''), all = candidates(group, g, used), c = [...all.filter(x => !prev.includes(x)), ...all.filter(x => prev.includes(x))]; // vary from the previous routine when possible
+    const optional = slot.endsWith('*'), comp = slot.startsWith('C:'), group = slot.replace(/^C:|\*$/g, '');
+    const all = candidates(group, g, used).filter(x => comp ? isCompound(x) : true).sort((x, y) => comp ? 0 : accRank(x) - accRank(y)); // accessories: isolation first, then machine/free-weight compounds, then bodyweight/bands
+    const c = [...all.filter(x => !prev.includes(x)), ...all.filter(x => prev.includes(x))]; // vary from the previous routine when possible
     if (!c.length) { missing.push(group); continue; }
     used.push(c[0]);
-    items.push({ex: c[0], sets: optional ? 2 : sets, reps: optional ? '10–15' : reps, rest: restOf(c[0]), alt: c[1] || '', optional});
+    items.push(comp ? {ex: c[0], sets: cs, reps: cr, rest: crest, alt: c[1] || '', optional: false, compound: true}
+      : {ex: c[0], sets: optional ? 2 : as, reps: ar, rest: arest, alt: c[1] || '', optional});
   }
-  // trim to fit the session: reduce sets on later exercises first, then drop the optional one
-  for (let i = items.length - 1; estMinutes(items) > limit && i >= 0; i--) if (items[i].sets > 2) { items[i].sets--; i = items.length; }
+  // fit the time cap: trim accessory sets (last first), then drop the optional one, then the last accessory. Compounds stay.
+  for (let i = items.length - 1; estMinutes(items) > limit && i >= 0; i--) if (!items[i].compound && items[i].sets > 2) { items[i].sets--; i = items.length; }
   if (estMinutes(items) > limit) { const o = items.findIndex(i => i.optional); if (o > -1) items.splice(o, 1); }
+  while (estMinutes(items) > limit && items.length > 3 && !items.at(-1).compound) items.pop();
+  // use the time you have: add sets (accessories first, max 4; then compounds, max 5) while it still fits
+  for (let grew = true; grew;) { grew = false;
+    for (const it of [...items.filter(i => !i.compound), ...items.filter(i => i.compound)]) {
+      if (it.sets >= (it.compound ? 5 : 4)) continue;
+      it.sets++; if (estMinutes(items) > limit) it.sets--; else grew = true;
+    } }
   return {id: uid(), name, items, missing, generated: true, gymId: g.id};
 }
 function generatePlan() {
-  const g = gym(), days = Array.isArray(P().days) ? P().days : [], limit = +P().session || 45;
+  const g = gym(), days = Array.isArray(P().days) ? P().days : [], limit = +P().session || 60;
   const split = days.length >= 4
-    ? [['Upper', ['Chest', 'Back', 'Shoulders', 'Back', 'Arms*']], ['Lower', ['Legs', 'Hamstrings', 'Legs', 'Hamstrings*']]]
-    : [['Full body A', ['Legs', 'Chest', 'Back', 'Hamstrings', 'Shoulders', 'Arms*']], ['Full body B', ['Hamstrings', 'Shoulders', 'Back', 'Legs', 'Chest', 'Arms*']]];
+    ? [['Upper', ['C:Chest', 'C:Back', 'Shoulders', 'Back', 'Chest', 'Arms*']], ['Lower', ['C:Legs', 'C:Hamstrings', 'Legs', 'Hamstrings', 'Shoulders*']]]
+    : [['Full body A', ['C:Legs', 'C:Chest', 'Back', 'Hamstrings', 'Shoulders', 'Arms*']], ['Full body B', ['C:Hamstrings', 'C:Back', 'Chest', 'Legs', 'Shoulders', 'Arms*']]];
   const routines = []; for (const [n, s] of split) routines.push(buildRoutine(n, s, g, limit, routines.flatMap(r => r.items.map(i => i.ex))));
   const week = {}; days.forEach((d, i) => week[d] = routines[i % routines.length].id);
   S.pending = {kind: 'training', routines, week, at: today()}; save();
@@ -138,7 +161,7 @@ function applyTrainingPlan() {
   if (document.getElementById('gchk') && !gchk.checked) return alert('Please confirm you have checked the plan against your clinician guidance.');
   const p = S.pending;
   S.routines = S.routines.filter(r => !r.generated).concat(p.routines);
-  S.week.days = p.week; S.pending = null; save(); go('Training');
+  S.week.days = p.week; S.plan = {start: today(), weeks: +S.settings.planWeeks || 6}; S.pending = null; save(); go('Training');
 }
 
 // ---------- routines: edit, import, adapt to gym ----------
@@ -294,7 +317,7 @@ function tick() {
 screens.Training = () => {
   if (S.active) return activeWorkout();
   const tr = todaysRoutine(), g = gym();
-  return `<h1 class="xl">Training</h1>${seg([['Routines', "go('Training')"], ['Planner', "go('Planner')"], ['Gyms', "go('Gyms')"]], 'Routines')}<p class="mute">${P().session} min strength sessions${Array.isArray(P().days) ? ' · ' + P().days.join(', ') : ''}</p>
+  return `<h1 class="xl">Training</h1>${seg([['Routines', "go('Training')"], ['Planner', "go('Planner')"], ['Gyms', "go('Gyms')"]], 'Routines')}<p class="mute">${P().session} min sessions, rests included${Array.isArray(P().days) ? ' · ' + P().days.join(', ') : ''}</p>
   <div class="card"><label>Gym</label><select onchange="S.gymId=+this.value;save();render()">${S.gyms.map(x => `<option value="${x.id}" ${x.id == g.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
     <button class="sec mt" onclick="go('Gyms')">Gyms, equipment &amp; preferences</button></div>
   ${latestGuidance() || has(P().clinician) ? guidanceBlock() : ''}
@@ -337,18 +360,18 @@ function activeWorkout() {
 }
 
 // ---------- Jefit-style plan view: today's workout ready to go, the week's plan, and a manual section ----------
-const exLine = i => { const s = typeof i === 'string' ? {ex: i} : i; return `<li class="exl"><span class="exn">${esc(s.ex)}${s.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="mute">${s.sets || 3} sets × ${esc(s.reps || '8–12')} reps · rest ${S.rest[s.ex] ?? s.rest ?? restOf(s.ex)} s</span></span></li>`; };
+const exLine = i => { const s = typeof i === 'string' ? {ex: i} : i; return `<li class="exl"><span class="exn">${esc(s.ex)}${s.compound ? ' <span class="tag">compound</span>' : ''}${s.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="mute">${s.sets || 3} sets × ${esc(s.reps || '8–12')} reps · rest ${S.rest[s.ex] ?? s.rest ?? restOf(s.ex)} s</span></span></li>`; };
 let openPlan = null;
 function planCards(tr) {
   const gen = S.routines.filter(r => r.generated), dayOf = r => DAYS.filter(d => S.week.days[d] == r.id).join(', ');
-  const hero = tr ? `<div class="card hero"><div class="mute">Today's workout</div><h2>${esc(tr.name)}</h2><p class="mute">${tr.items.length} exercises · ~${estMinutes(tr.items)} min · rest built in</p>
+  const hero = tr ? `<div class="card hero"><div class="mute">Today's workout${planTag()}</div><h2>${esc(tr.name)}</h2><p class="mute">${tr.items.length} exercises · ${timeLabel(tr.items)}</p>
       <ul>${tr.items.map(exLine).join('')}</ul><button class="mt" onclick="startWorkout(${tr.id})">Start workout</button></div>`
     : gen.length ? `<div class="card hero"><div class="mute">Today</div><h2>Rest day</h2><p class="mute">Nothing planned. Fancy a session anyway? Pick one below.</p></div>`
     : `<div class="card hero"><h2>Get a plan built for you</h2><p class="mute">Answer a few quick questions and I'll build your week: exercises, sets, reps and rest, timed to fit your session and your gym's equipment.</p><button class="mt" onclick="go('Generate')">Build my plan</button></div>`;
-  const week = gen.length ? `<h3>Your plan</h3>${gen.map(r => `<div class="card"><div class="sec-h"><div><b>${esc(r.name)}</b><div class="mute">${dayOf(r) || 'Not on a day'} · ${r.items.length} exercises · ~${estMinutes(r.items)} min</div></div>
+  const week = gen.length ? `<h3>Your plan</h3>${gen.map(r => `<div class="card"><div class="sec-h"><div><b>${esc(r.name)}</b><div class="mute">${dayOf(r) || 'Not on a day'} · ${r.items.length} exercises · ${timeLabel(r.items)}</div></div>
       <button class="link" style="width:auto" onclick="openPlan=openPlan===${r.id}?null:${r.id};render()">${openPlan === r.id ? 'Hide' : 'View'}</button></div>
       ${openPlan === r.id ? `<ul>${r.items.map(exLine).join('')}</ul>` : ''}<div class="grid2 mt"><button onclick="startWorkout(${r.id})">Start</button><button class="sec" onclick="editingRoutine=${r.id};go('Routine')">Edit</button></div></div>`).join('')}
-      <button class="sec" onclick="go('Generate')">Rebuild my plan</button>` : '';
+      <button class="sec" onclick="rebuildPlan()">Rebuild my plan</button>` : '';
   const manual = `<h3>Manual</h3><div class="card"><p class="mute">Build your own, or just start and add exercises as you go.</p>
       ${act3([['Empty workout', 'plus', 'startWorkout()'], ['New routine', 'edit', "const r={id:uid(),name:'New routine',items:[]};S.routines.push(r);editingRoutine=r.id;save();go('Routine')"], ['Import', 'more', "go('RoutineImport')"]])}
       ${S.routines.filter(r => !r.generated).map(r => `<div class="sec-h"><span>${esc(r.name)}<br><span class="mute">${r.items.length} exercises · ~${estMinutes(r.items)} min</span></span><span style="white-space:nowrap"><button class="pill" onclick="startWorkout(${r.id})">Start</button> <button class="link" style="width:auto" onclick="editingRoutine=${r.id};go('Routine')">Edit</button></span></div>`).join('')}</div>`;
@@ -369,4 +392,13 @@ function trainingProgress() {
     ${sessions.length > 1 ? `<svg viewBox="0 0 300 100" style="width:100%" role="img" aria-label="Heaviest set per session for ${esc(ex)}"><polyline fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linejoin="round" points="${sessions.map(([, kg], i) => `${10 + i / (sessions.length - 1) * 280},${90 - (kg - lo) / Math.max(1, top - lo) * 75}`).join(' ')}"/>${sessions.map(([d, kg], i) => `<circle cx="${10 + i / (sessions.length - 1) * 280}" cy="${90 - (kg - lo) / Math.max(1, top - lo) * 75}" r="3.5" fill="var(--acc)"><title>${ukDate(d)}: ${kg} kg</title></circle>`).join('')}</svg>
       <p class="mute">${sessions[0][1]} kg → ${sessions.at(-1)[1]} kg over ${sessions.length} sessions</p>` : '<p class="mute">Log this exercise in two sessions to see a trend.</p>'}</div>` : ''}
   <div class="card"><h2>Best lifts</h2><ul>${exs.map(e => { const r = S.records[e]; return `<li><span>${esc(e)}<br><span class="mute">est. 1RM ${est1RM(r)} kg</span></span><span>${r.kg} kg × ${r.reps}<br><span class="mute">${ukDate(r.date)}</span></span></li>`; }).join('') || '<li class="mute">None yet</li>'}</ul></div>`;
+}
+
+// ---------- training blocks: stick with one plan for 4–6 weeks ----------
+const planWeek = () => S.plan?.start ? Math.floor(daysBetween(S.plan.start, today()) / 7) + 1 : 0;
+const planTag = () => S.plan?.start ? ` · week ${Math.min(planWeek(), S.plan.weeks)} of ${S.plan.weeks}` : '';
+function rebuildPlan() {
+  const w = planWeek();
+  if (S.plan?.start && w < 4 && !confirm(`You're in week ${w} of ${S.plan.weeks}. Sticking with one plan for at least 4 weeks makes your progress clear. Rebuild anyway?`)) return;
+  go('Generate');
 }

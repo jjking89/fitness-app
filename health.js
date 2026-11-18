@@ -159,7 +159,8 @@ screens.Health = () => {
     <label>Night of</label><input name="date" type="date" value="${dayOffset(-1)}">
     <div class="row"><div><label>Bedtime</label><input name="bed" type="time" required></div><div><label>Wake time</label><input name="wake" type="time" required></div></div>
     <input name="note" placeholder="Notes (optional)" class="mt"><button class="mt">Save sleep</button></form>
-    <ul class="mt">${items('sleep', x => `${fmtHours(x.hours)} · ${esc(x.bed)}–${esc(x.wake)}${x.note ? '<br><span class="mute">' + esc(x.note) + '</span>' : ''}`, 5)}</ul></div>
+    <ul class="mt">${items('sleep', x => `${fmtHours(+x.hours)}${x.bed ? ` · ${esc(x.bed)}–${esc(x.wake)}` : ''}${x.source ? ` <span class="tag">${esc(x.source)}</span>` : ''}${sleepExtras(x) ? '<br><span class="mute">' + sleepExtras(x) + '</span>' : ''}${x.note ? '<br><span class="mute">' + esc(x.note) + '</span>' : ''}`, 5)}</ul></div>
+  ${ringCard()}
   <h2 style="margin-top:20px">🔒 Private health</h2><p class="mute">Stored only on this device. Left out of backups and summaries unless you choose to include it.</p>
   ${SAFETY}
   <div class="card"><h2>Clinician notes &amp; guidance</h2><p class="mute">Date each entry. The newest “Guidance” entry is shown on Training.</p>
