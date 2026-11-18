@@ -265,7 +265,7 @@ const pick = (o, ks) => Object.fromEntries(ks.map(k => [k, o[k] ?? '']));
 const mealInfo = m => [m.portion, `${m.kcal || 0} kcal`, `P ${m.protein || 0} g`, `C ${m.carbs || 0} g`, `F ${m.fat || 0} g`, `Fibre ${m.fibre || 0} g`].filter(Boolean).map(esc).join(' · ');
 const repeatMeal = m => { S.meals.push({id: uid(), date: today(), ...pick(m, MEAL_KEYS), savedAt: Date.now()}); save(); render(); };
 function favMeal(id) { const m = S.meals.find(x => x.id == id); if (S.favs.some(f => f.name === m.name)) return alert('Already a favourite.'); S.favs.push({id: uid(), date: today(), ...pick(m, MEAL_KEYS)}); save(); render(); }
-const mealActions = () => `${MEAL_SLOTS.map(sl => mealSlotCard(sl, S.meals.filter(m => m.date === today() && slotOf(m) === sl[0]))).join('')}
+const mealActions = () => `${MEAL_SLOTS.map(sl => mealSlotCard(sl, S.meals.filter(m => m.date === today() && slotOf(m) === sl[0]))).join('')}${completeBtn()}
   ${S.draft ? `<button class="sec mt" onclick="go('Meal')">Continue draft (${S.draft.items.length} item${S.draft.items.length === 1 ? '' : 's'})</button>` : ''}`;
 function dayTotals(d = today()) { const m = S.meals.filter(x => x.date === d); return {kcal: sum(m, 'kcal'), protein: sum(m, 'protein'), carbs: sum(m, 'carbs'), fat: sum(m, 'fat'), fibre: sum(m, 'fibre'), water: sum(S.water.filter(x => x.date === d), 'ml'), n: m.length}; }
 

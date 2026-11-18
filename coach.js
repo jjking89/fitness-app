@@ -8,7 +8,7 @@ const r10 = v => Math.round(v / 10) * 10;
 
 // Average intake over fully-logged days (>= 1000 kcal) in the 14 days before `to`. Partly logged days are left out, not counted as low.
 function loggedIntake(to) {
-  const days = [...Array(14)].map((_, i) => dayOffset(-i - 1, to)).map(d => sum(S.meals.filter(m => m.date === d), 'kcal')).filter(k => k >= 1000);
+  const days = [...Array(14)].map((_, i) => dayOffset(-i - 1, to)).filter(d => sum(S.meals.filter(m => m.date === d), 'kcal') >= (S.done?.[d] ? 800 : 1000)).map(d => sum(S.meals.filter(m => m.date === d), 'kcal'));
   return {n: days.length, avg: days.length ? days.reduce((a, b) => a + b, 0) / days.length : 0};
 }
 // Returns new targets, or null when there isn't enough data. Pure: doesn't change state.
@@ -179,4 +179,18 @@ function coachInsights(from) {
     else if (g) imp.push({what: `Weight didn't move towards your goal this week (${d >= 0 ? '+' : ''}${d.toFixed(1)} kg)`, how: 'One week is noisy (water, salt, timing). Keep logging. If auto-targets are on, they will adjust after your next weigh-in.'}); }
   else if (!a.w.length) imp.push({what: 'No weigh-in this week', how: `Weigh on ${S.settings.weighDay || 'Mon'} morning: the box appears on Today. Targets can't update without it.`});
   return {work, imp: imp.slice(0, 4)};
+}
+
+// ---------- complete today's diary (like MyFitnessPal) ----------
+const completeBtn = (d = today()) => S.done?.[d]
+  ? `<div class="donebar">✓ Diary complete for today <button class="link" style="width:auto" onclick="delete S.done['${d}'];save();render()">Reopen</button></div>`
+  : `<button class="mt" onclick="completeDay('${d}')">Complete today's diary</button>`;
+function completeDay(d = today()) {
+  const eaten = dayTotals(d).kcal, w = allWeights().at(-1), tdee = S.coach.tdee || (w ? w.kg * 30 : 0);
+  if (!eaten && !confirm('Nothing logged today. Mark it complete anyway?')) return;
+  (S.done ||= {})[d] = true; save(); render();
+  if (eaten && eaten < 1000) toastMsg(`Done ✓ Only ${gb(eaten)} kcal logged. If you missed anything, tap Reopen and add it.`);
+  else if (w && tdee && eaten) { const in5 = w.kg - (tdee - eaten) * 35 / KCAL_PER_KG;
+    toastMsg(`Done ✓ If every day were like today, you'd weigh about ${in5.toFixed(1)} kg in 5 weeks.`); }
+  else toastMsg('Done ✓ Day completed.');
 }
