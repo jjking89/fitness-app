@@ -164,3 +164,14 @@ body{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 #timer{bottom:calc(80px + env(safe-area-inset-bottom))}
 .wbar{bottom:calc(80px + env(safe-area-inset-bottom))}body:has(.wbar) #timer{bottom:calc(150px + env(safe-area-inset-bottom))}
 .num small{flex:none;white-space:nowrap}.num input{min-width:0;width:100%}
+/* iOS-style pill segmented control */
+.seg{display:flex;gap:4px;padding:4px;border:1px solid var(--glass-b);border-bottom:1px solid var(--glass-b);border-radius:999px;background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);box-shadow:inset 0 1px 0 var(--glass-hi);margin:var(--s2) 0 var(--s4);overflow:visible}
+.seg button{flex:1 1 0;width:auto;border:0;border-radius:999px;min-height:38px;padding:8px 10px;color:var(--ink);font-weight:600;font-size:15px;background:none;transition:background .2s,box-shadow .2s}
+.seg button.on{color:var(--ink);border-bottom:0;background:var(--card);box-shadow:0 2px 8px rgba(0,0,0,.12),inset 0 1px 0 var(--glass-hi)}
+@media (prefers-color-scheme:dark){.seg button.on{background:rgba(255,255,255,.16)}}
+/* plan cards */
+.hero{background:linear-gradient(135deg,color-mix(in srgb,var(--acc) 22%,var(--glass)),var(--glass))}
+.hero h2{font-size:24px;margin:2px 0}
+.exl{min-height:0;padding:var(--s2) 0}
+.exn{line-height:1.35}
+h3{margin-top:var(--s5)}

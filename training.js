@@ -298,13 +298,7 @@ screens.Training = () => {
   <div class="card"><label>Gym</label><select onchange="S.gymId=+this.value;save();render()">${S.gyms.map(x => `<option value="${x.id}" ${x.id == g.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
     <button class="sec mt" onclick="go('Gyms')">Gyms, equipment &amp; preferences</button></div>
   ${latestGuidance() || has(P().clinician) ? guidanceBlock() : ''}
-  <div class="card"><h2>Today</h2>${tr ? `<p>${esc(tr.name)} · ~${estMinutes(tr.items)} min</p>` : '<p class="mute">No routine planned today.</p>'}
-    <button onclick="startWorkout(${tr ? tr.id : ''})">Start workout</button></div>
-  <div class="card"><h2>Routines</h2>${S.routines.length ? `<ul>${S.routines.map(r => {
-      const flag = r.items.some(i => i.ex && !equipOk(g, i.ex));
-      return `<li><span>${esc(r.name)}${flag ? '<span class="tag warn">needs replacement here</span>' : ''}<br><span class="mute">${r.items.length} exercises · ~${estMinutes(r.items)} min</span></span><span style="white-space:nowrap"><button onclick="startWorkout(${r.id})">Start</button><button onclick="editingRoutine=${r.id};go('Routine')">Edit</button></span></li>`; }).join('')}</ul>` : '<p class="mute">No routines yet.</p>'}
-    <button class="mt" onclick="go('Generate')">${S.routines.some(r => r.generated) ? 'Regenerate weekly plan' : 'Create my weekly plan'}</button>
-    ${act3([['New routine', 'plus', "const r={id:uid(),name:'New routine',items:[]};S.routines.push(r);editingRoutine=r.id;save();go('Routine')"], ['Weekly planner', 'edit', "go('Planner')"], ['Import routine', 'more', "go('RoutineImport')"]])}</div>
+  ${planCards(tr)}
   <div class="card"><h2>Rest timer</h2>
     <label class="chk"><input type="checkbox" ${S.settings.autoRest ? 'checked' : ''} onchange="S.settings.autoRest=this.checked;save()"> Start automatically when I tick a set</label>
     <label class="chk"><input type="checkbox" ${S.settings.sound ? 'checked' : ''} onchange="S.settings.sound=this.checked;save()"> Sound at end of rest</label>
@@ -340,4 +334,39 @@ function activeWorkout() {
   <button class="mt" onclick="finishWorkout()">Finish workout</button>
   <div class="wbar">${cex ? `<button class="sq sec" onclick="document.getElementById('note${ci}').focus()" aria-label="Notes">${ic(IC.edit)}</button><button class="sq sec" onclick="unlockAudio();startTimer(restOf(${js(cex)}),${js(cex)})" aria-label="Start rest timer">${ic(IC.clock)}</button>` : ''}
     <button class="pill" ${cj < 0 ? 'disabled' : `onclick="S.settings.autoRest||startTimer(restOf(${js(cex)}),${js(cex)});toggleSet(${ci},${cj})"`}>${cj < 0 ? 'All sets logged' : 'Log set'}</button></div>`;
+}
+
+// ---------- Jefit-style plan view: today's workout ready to go, the week's plan, and a manual section ----------
+const exLine = i => { const s = typeof i === 'string' ? {ex: i} : i; return `<li class="exl"><span class="exn">${esc(s.ex)}${s.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="mute">${s.sets || 3} sets × ${esc(s.reps || '8–12')} reps · rest ${S.rest[s.ex] ?? s.rest ?? restOf(s.ex)} s</span></span></li>`; };
+let openPlan = null;
+function planCards(tr) {
+  const gen = S.routines.filter(r => r.generated), dayOf = r => DAYS.filter(d => S.week.days[d] == r.id).join(', ');
+  const hero = tr ? `<div class="card hero"><div class="mute">Today's workout</div><h2>${esc(tr.name)}</h2><p class="mute">${tr.items.length} exercises · ~${estMinutes(tr.items)} min · rest built in</p>
+      <ul>${tr.items.map(exLine).join('')}</ul><button class="mt" onclick="startWorkout(${tr.id})">Start workout</button></div>`
+    : gen.length ? `<div class="card hero"><div class="mute">Today</div><h2>Rest day</h2><p class="mute">Nothing planned. Fancy a session anyway? Pick one below.</p></div>`
+    : `<div class="card hero"><h2>Get a plan built for you</h2><p class="mute">Answer a few quick questions and I'll build your week: exercises, sets, reps and rest, timed to fit your session and your gym's equipment.</p><button class="mt" onclick="go('Generate')">Build my plan</button></div>`;
+  const week = gen.length ? `<h3>Your plan</h3>${gen.map(r => `<div class="card"><div class="sec-h"><div><b>${esc(r.name)}</b><div class="mute">${dayOf(r) || 'Not on a day'} · ${r.items.length} exercises · ~${estMinutes(r.items)} min</div></div>
+      <button class="link" style="width:auto" onclick="openPlan=openPlan===${r.id}?null:${r.id};render()">${openPlan === r.id ? 'Hide' : 'View'}</button></div>
+      ${openPlan === r.id ? `<ul>${r.items.map(exLine).join('')}</ul>` : ''}<div class="grid2 mt"><button onclick="startWorkout(${r.id})">Start</button><button class="sec" onclick="editingRoutine=${r.id};go('Routine')">Edit</button></div></div>`).join('')}
+      <button class="sec" onclick="go('Generate')">Rebuild my plan</button>` : '';
+  const manual = `<h3>Manual</h3><div class="card"><p class="mute">Build your own, or just start and add exercises as you go.</p>
+      ${act3([['Empty workout', 'plus', 'startWorkout()'], ['New routine', 'edit', "const r={id:uid(),name:'New routine',items:[]};S.routines.push(r);editingRoutine=r.id;save();go('Routine')"], ['Import', 'more', "go('RoutineImport')"]])}
+      ${S.routines.filter(r => !r.generated).map(r => `<div class="sec-h"><span>${esc(r.name)}<br><span class="mute">${r.items.length} exercises · ~${estMinutes(r.items)} min</span></span><span style="white-space:nowrap"><button class="pill" onclick="startWorkout(${r.id})">Start</button> <button class="link" style="width:auto" onclick="editingRoutine=${r.id};go('Routine')">Edit</button></span></div>`).join('')}</div>`;
+  return hero + week + manual;
+}
+
+// ---------- Progress → Training: workouts per week, best lifts, per-exercise trend ----------
+let progEx = null;
+function trainingProgress() {
+  const weeks = [...Array(8)].map((_, i) => { const from = dayOffset(-7 * (7 - i) - ((new Date().getDay() + 6) % 7)); const days = [...Array(7)].map((_, j) => dayOffset(j, from)); return [from, new Set(S.workouts.filter(w => days.includes(w.date)).map(w => w.date)).size]; });
+  const hi = Math.max(1, ...weeks.map(w => w[1])), exs = Object.keys(S.records).sort(), ex = progEx && S.records[progEx] ? progEx : exs[0];
+  const sessions = ex ? Object.entries(S.workouts.filter(w => w.exercise === ex && +w.kg > 0).reduce((a, w) => (a[w.date] = Math.max(a[w.date] || 0, +w.kg), a), {})).sort() : [];
+  const lo = sessions.length ? Math.min(...sessions.map(s => s[1])) : 0, top = sessions.length ? Math.max(...sessions.map(s => s[1])) : 1;
+  const vol = S.workouts.filter(w => w.date >= dayOffset(-7)).reduce((a, w) => a + (+w.kg || 0) * (+w.reps || 0), 0);
+  return `<div class="card insight">${ic(IC.bulb)}<p>${S.workouts.length ? `You lifted <b>${gb(Math.round(vol))} kg</b> in total over the last 7 days (weight × reps).` : 'Finish a workout and your progress shows up here.'}</p></div>
+  <div class="card"><h2>Workouts per week</h2><div class="bars" role="img" aria-label="Workouts per week, last 8 weeks">${weeks.map(([d, n]) => `<div title="Week of ${ukDate(d)}: ${n}"><span class="mute">${n || ''}</span><i style="height:${n / hi * 100}%"></i><span class="mute">${+d.slice(8)}/${+d.slice(5, 7)}</span></div>`).join('')}</div></div>
+  ${ex ? `<div class="card"><h2>Exercise progress</h2><select onchange="progEx=this.value;render()">${exs.map(e => `<option ${e === ex ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>
+    ${sessions.length > 1 ? `<svg viewBox="0 0 300 100" style="width:100%" role="img" aria-label="Heaviest set per session for ${esc(ex)}"><polyline fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linejoin="round" points="${sessions.map(([, kg], i) => `${10 + i / (sessions.length - 1) * 280},${90 - (kg - lo) / Math.max(1, top - lo) * 75}`).join(' ')}"/>${sessions.map(([d, kg], i) => `<circle cx="${10 + i / (sessions.length - 1) * 280}" cy="${90 - (kg - lo) / Math.max(1, top - lo) * 75}" r="3.5" fill="var(--acc)"><title>${ukDate(d)}: ${kg} kg</title></circle>`).join('')}</svg>
+      <p class="mute">${sessions[0][1]} kg → ${sessions.at(-1)[1]} kg over ${sessions.length} sessions</p>` : '<p class="mute">Log this exercise in two sessions to see a trend.</p>'}</div>` : ''}
+  <div class="card"><h2>Best lifts</h2><ul>${exs.map(e => { const r = S.records[e]; return `<li><span>${esc(e)}<br><span class="mute">est. 1RM ${est1RM(r)} kg</span></span><span>${r.kg} kg × ${r.reps}<br><span class="mute">${ukDate(r.date)}</span></span></li>`; }).join('') || '<li class="mute">None yet</li>'}</ul></div>`;
 }

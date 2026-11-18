@@ -72,14 +72,15 @@ function weightChart(w, avg) {
     <text x="0" y="8" font-size="8" fill="var(--mute)">${gb(hi)} kg</text></svg>`;
 }
 let showAvg = false;
+let progTab = 'Body';
 screens.Progress = () => {
   const w = allWeights(), dated = S.body.flatMap(b => bodyReadings(b).filter(r => r.date).map(r => ({...r, source: b.source}))), reports = S.body.filter(b => b.kind === 'report');
   const wk = [...Array(7)].map((_, i) => { const d = dayOffset(i - 6); return [d, dayTotals(d).kcal]; }), kt = +P().kcal, logged = wk.filter(x => x[1]), avg = logged.length ? sum(logged.map(x => ({k: x[1]})), 'k') / logged.length : 0, hi = Math.max(kt, ...wk.map(x => x[1]), 1);
   return `<h1 class="xl">Progress</h1>
-  ${seg([['Calories', "document.getElementById('p-cal').scrollIntoView()"], ['Weight', "document.getElementById('p-wt').scrollIntoView()"], ['Body', "document.getElementById('p-body').scrollIntoView()"]], 'Calories')}
-  <div class="card insight">${ic(IC.bulb)}<p>${logged.length ? `You averaged <b>${gb(Math.round(avg))} kcal</b> on ${logged.length} logged day${logged.length === 1 ? '' : 's'} this week${kt ? ` against a ${gb(kt)} kcal target` : ''}.` : 'Log meals this week to see your calorie average here.'}</p></div>
-  <div class="card" id="p-cal"><h2>Calories, last 7 days</h2><div class="bars" role="img" aria-label="Daily calories for the last 7 days">${wk.map(([d, k]) => `<div title="${ukDate(d)}: ${gb(k)} kcal"><span class="mute">${k ? gb(k) : ''}</span><i style="height:${k / hi * 100}%"></i><span class="mute">${'SMTWTFS'[new Date(d + 'T12:00').getDay()]}</span></div>`).join('')}</div>${kt ? `<p class="mute">Target ${gb(kt)} kcal/day</p>` : ''}</div>
-  <div class="card" id="p-wt"><h2>Weight</h2><label class="chk"><input type="checkbox" ${S.settings.autoTargets ? 'checked' : ''} onchange="S.settings.autoTargets=this.checked;save()"> Update my targets automatically after each weekly weigh-in</label>
+  ${seg([['Body', "progTab='Body';render()"], ['Nutrition', "progTab='Nutrition';render()"], ['Training', "progTab='Training';render()"]], progTab)}
+  ${progTab === 'Nutrition' ? `<div class="card insight">${ic(IC.bulb)}<p>${logged.length ? `You averaged <b>${gb(Math.round(avg))} kcal</b> on ${logged.length} logged day${logged.length === 1 ? '' : 's'} this week${kt ? ` against a ${gb(kt)} kcal target` : ''}.` : 'Log meals this week to see your calorie average here.'}</p></div>
+  <div class="card" id="p-cal"><h2>Calories, last 7 days</h2><div class="bars" role="img" aria-label="Daily calories for the last 7 days">${wk.map(([d, k]) => `<div title="${ukDate(d)}: ${gb(k)} kcal"><span class="mute">${k ? gb(k) : ''}</span><i style="height:${k / hi * 100}%"></i><span class="mute">${'SMTWTFS'[new Date(d + 'T12:00').getDay()]}</span></div>`).join('')}</div>${kt ? `<p class="mute">Target ${gb(kt)} kcal/day</p>` : ''}</div>` : ''}
+  ${progTab === 'Body' ? `<div class="card" id="p-wt"><h2>Weight</h2><label class="chk"><input type="checkbox" ${S.settings.autoTargets ? 'checked' : ''} onchange="S.settings.autoTargets=this.checked;save()"> Update my targets automatically after each weekly weigh-in</label>
     <label>Weigh-in day</label><select onchange="S.settings.weighDay=this.value;save();render()">${DAYS.map(d => `<option ${d === (S.settings.weighDay || 'Mon') ? 'selected' : ''}>${d}</option>`).join('')}</select>
     ${S.coach.history.length ? `<p class="mute">Last update ${ukDate(S.coach.history.at(-1).date)}: ${S.coach.history.at(-1).to.kcal} kcal${S.coach.history.at(-1).undone ? ' (undone)' : ''} · based on ${esc(S.coach.history.at(-1).how)}</p>` : ''}${weightChart(w, showAvg && w.length >= 7)}
     ${w.length >= 7 ? `<label class="chk"><input type="checkbox" ${showAvg ? 'checked' : ''} onchange="showAvg=this.checked;render()"> Show 7-day average</label>` : `<p class="mute">7-day average appears once you have 7 readings (${w.length} so far).</p>`}
@@ -88,8 +89,8 @@ screens.Progress = () => {
   ${reports.map(reportCard).join('')}
   <div class="card" id="p-body"><h2>Body composition trends</h2>${METRICS.filter(m => m[0] !== 'weight').map(([k, l, u, est]) => { const pts = dated.filter(r => r.m?.[k] !== undefined && r.m[k] !== ''); return pts.length ? `<h3>${l}${est ? '<span class="tag">scale estimate</span>' : ''}</h3>
       <ul>${pts.sort((a, b) => a.date < b.date ? -1 : 1).map(r => `<li><span>${gb(r.m[k])} ${u}</span><span class="mute">${ukDate(r.date)} · ${esc(r.source)}${r.label ? ' · ' + r.label : ''}</span></li>`).join('')}</ul>` : ''; }).join('') || '<p class="mute">No dated body-composition readings yet. Undated report values are shown in the snapshot above.</p>'}</div>
-  <div class="card"><h2>Add readings</h2><div class="grid2"><button class="sec" onclick="go('BodyManual')">Manual entry</button><button class="sec" onclick="go('BodyImport')">Import scale report</button></div></div>
-  <div class="card"><h2>Best lifts</h2><ul>${Object.entries(S.records).map(([e, r]) => `<li><span>${esc(e)}</span><span>${r.kg} kg × ${r.reps} · ${ukDate(r.date)}</span></li>`).join('') || '<li class="mute">None yet</li>'}</ul></div>`;
+  <div class="card"><h2>Add readings</h2><div class="grid2"><button class="sec" onclick="go('BodyManual')">Manual entry</button><button class="sec" onclick="go('BodyImport')">Import scale report</button></div></div>` : ''}
+  ${progTab === 'Training' ? trainingProgress() : ''}`;
 };
 function reportCard(b) {
   const row = (l, a, z, u, est) => `<li><span>${l}${est ? '<span class="tag">scale estimate</span>' : ''}</span><span>${a ?? '–'} → ${z ?? '–'} ${u}</span></li>`;
