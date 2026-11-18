@@ -28,7 +28,7 @@ function macroCard(t) { // display only; fibre shows '–' until totals/targets 
     `<div><div class="mute">${l}</div>${opt && (h == null || !+tg) ? '<div><b>–</b></div>' : `<div><b>${gb(h)}</b> g${+tg ? ` / ${gb(tg)}` : ''}</div>${mbar(h, tg, col)}`}</div>`).join('')}</div>`;
 }
 screens.Today = () => {
-  const t = dayTotals(), tr = todaysRoutine(), st = stepsOn(today()), lastW = allWeights().at(-1), kt = +P().kcal, meals = S.meals.filter(m => m.date === today());
+  const t = dayTotals(), kt = +P().kcal, meals = S.meals.filter(m => m.date === today());
   return `<div class="sec-h"><h1 class="xl">Today</h1><button class="link" style="width:auto" onclick="go('Settings')" aria-label="Settings">⚙️ Settings</button></div>${weekStrip()}
   ${!P().done ? `<div class="card"><h2>Set up your profile</h2><p class="mute">${S.iv ? `Question ${S.iv + 1} of ${QUESTIONS.length}` : 'One question at a time. Skip or say not sure to anything.'}</p><button onclick="go('Interview')">${S.iv ? 'Continue' : 'Start'}</button></div>` : ''}
   ${coachCard()}${S.reviews.at(-1)?.auto && S.reviews.at(-1).date === today() ? `<div class="note"><b>Your weekly review is ready.</b> <button class="mt" onclick="revId=S.reviews.at(-1).id;go('Review')">Open weekly review</button></div>` : ''}
@@ -41,10 +41,7 @@ screens.Today = () => {
   <div class="card">${macroRow('Water', t.water, P().waterGoal, 'ml')}<div class="grid2 mt"><button class="sec" onclick="add('water',{ml:250})">+250 ml</button><button class="sec" onclick="add('water',{ml:500})">+500 ml</button></div></div>
   <div class="sec-h"><h2>Diary</h2><button class="link" onclick="go('Food')">View all</button></div>
   ${MEAL_SLOTS.map(sl => mealSlotCard(sl, meals.filter(m => slotOf(m) === sl[0]))).join('')}
-  <div class="card mt"><h2>Training</h2><p>${S.active ? 'Workout in progress' : tr ? `${esc(tr.name)} planned · ~${estMinutes(tr.items)} min` : '<span class="mute">Nothing planned today</span>'}</p></div>
-  <div class="card grid2"><div><div class="mute">Steps</div><div class="big">${st == null ? '–' : st.toLocaleString('en-GB')}</div><div class="mute">${st == null ? 'not logged' : +P().stepGoal ? 'of ' + (+P().stepGoal).toLocaleString('en-GB') : ''}</div></div>
-    <div><div class="mute">Weight</div><div class="big">${lastW ? lastW.kg : '–'}</div><div class="mute">${lastW ? 'kg · ' + ukDate(lastW.date) : 'no readings'}</div></div></div>
-  <button class="sec" onclick="startReview()">Run weekly review</button>`;
+`;
 };
 
 // ---------- Progress ----------
@@ -80,15 +77,14 @@ screens.Progress = () => {
   ${seg([['Body', "progTab='Body';render()"], ['Nutrition', "progTab='Nutrition';render()"], ['Training', "progTab='Training';render()"]], progTab)}
   ${progTab === 'Nutrition' ? `<div class="card insight">${ic(IC.bulb)}<p>${logged.length ? `You averaged <b>${gb(Math.round(avg))} kcal</b> on ${logged.length} logged day${logged.length === 1 ? '' : 's'} this week${kt ? ` against a ${gb(kt)} kcal target` : ''}.` : 'Log meals this week to see your calorie average here.'}</p></div>
   <div class="card" id="p-cal"><h2>Calories, last 7 days</h2><div class="bars" role="img" aria-label="Daily calories for the last 7 days">${wk.map(([d, k]) => `<div title="${ukDate(d)}: ${gb(k)} kcal"><span class="mute">${k ? gb(k) : ''}</span><i style="height:${k / hi * 100}%"></i><span class="mute">${'SMTWTFS'[new Date(d + 'T12:00').getDay()]}</span></div>`).join('')}</div>${kt ? `<p class="mute">Target ${gb(kt)} kcal/day</p>` : ''}</div>` : ''}
-  ${progTab === 'Body' ? `<div class="card" id="p-wt"><h2>Weight</h2><label class="chk"><input type="checkbox" ${S.settings.autoTargets ? 'checked' : ''} onchange="S.settings.autoTargets=this.checked;save()"> Update my targets automatically after each weekly weigh-in</label>
-    <label>Weigh-in day</label><select onchange="S.settings.weighDay=this.value;save();render()">${DAYS.map(d => `<option ${d === (S.settings.weighDay || 'Mon') ? 'selected' : ''}>${d}</option>`).join('')}</select>
+  ${progTab === 'Body' ? `<div class="card" id="p-wt"><h2>Weight</h2>
     ${S.coach.history.length ? `<p class="mute">Last update ${ukDate(S.coach.history.at(-1).date)}: ${S.coach.history.at(-1).to.kcal} kcal${S.coach.history.at(-1).undone ? ' (undone)' : ''} · based on ${esc(S.coach.history.at(-1).how)}</p>` : ''}${weightChart(w, showAvg && w.length >= 7)}
     ${w.length >= 7 ? `<label class="chk"><input type="checkbox" ${showAvg ? 'checked' : ''} onchange="showAvg=this.checked;render()"> Show 7-day average</label>` : `<p class="mute">7-day average appears once you have 7 readings (${w.length} so far).</p>`}
     <form class="row mt" onsubmit="event.preventDefault();add('weights',{...form(this),source:'Manual'})"><input name="date" type="date" value="${today()}" aria-label="Date"><input name="kg" type="number" step="0.1" inputmode="decimal" placeholder="kg" required><button class="sec">Add</button></form>
     <ul class="mt">${items('weights', x => `${x.kg} kg <span class="tag">${esc(x.source || 'Manual')}</span>`, 10)}</ul></div>
-  ${reports.map(reportCard).join('')}
-  <div class="card" id="p-body"><h2>Body composition trends</h2>${METRICS.filter(m => m[0] !== 'weight').map(([k, l, u, est]) => { const pts = dated.filter(r => r.m?.[k] !== undefined && r.m[k] !== ''); return pts.length ? `<h3>${l}${est ? '<span class="tag">scale estimate</span>' : ''}</h3>
-      <ul>${pts.sort((a, b) => a.date < b.date ? -1 : 1).map(r => `<li><span>${gb(r.m[k])} ${u}</span><span class="mute">${ukDate(r.date)} · ${esc(r.source)}${r.label ? ' · ' + r.label : ''}</span></li>`).join('')}</ul>` : ''; }).join('') || '<p class="mute">No dated body-composition readings yet. Undated report values are shown in the snapshot above.</p>'}</div>
+  <details class="card more" id="p-body"><summary>Body composition</summary>${reports.map(reportCard).join('')}
+  <h2>Body composition trends</h2>${METRICS.filter(m => m[0] !== 'weight').map(([k, l, u, est]) => { const pts = dated.filter(r => r.m?.[k] !== undefined && r.m[k] !== ''); return pts.length ? `<h3>${l}${est ? '<span class="tag">scale estimate</span>' : ''}</h3>
+      <ul>${pts.sort((a, b) => a.date < b.date ? -1 : 1).map(r => `<li><span>${gb(r.m[k])} ${u}</span><span class="mute">${ukDate(r.date)} · ${esc(r.source)}${r.label ? ' · ' + r.label : ''}</span></li>`).join('')}</ul>` : ''; }).join('') || '<p class="mute">No dated body-composition readings yet. Undated report values are shown in the snapshot above.</p>'}</details>
   <div class="card"><h2>Add readings</h2><div class="grid2"><button class="sec" onclick="go('BodyManual')">Manual entry</button><button class="sec" onclick="go('BodyImport')">Import scale report</button></div></div>` : ''}
   ${progTab === 'Training' ? trainingProgress() : ''}`;
 };
@@ -171,17 +167,17 @@ screens.Health = () => {
     <label>Movements to avoid</label><input value="${esc(H.constraints.avoid)}" onchange="S.health.constraints.avoid=this.value;save()">
     <label>Heart-rate zones</label><input value="${esc(H.constraints.hr)}" onchange="S.health.constraints.hr=this.value;save()">
     <label>Intensity limits</label><input value="${esc(H.constraints.intensity)}" onchange="S.health.constraints.intensity=this.value;save()"></div>
-  <div class="card"><h2>Follow-ups &amp; appointments</h2>
+  <details class="card more"><summary>Follow-ups &amp; appointments</summary>
     <form onsubmit="event.preventDefault();add('health.appts',form(this));this.reset()"><label>Type</label><select name="type">${APPT_TYPES.map(t => `<option>${t}</option>`).join('')}</select>
       <div class="row"><div><label>Status</label><select name="status"><option>To arrange</option><option>Booked</option><option>Done</option></select></div><div><label>Date</label><input type="date" name="date"></div><div><label>Time</label><input type="time" name="time"></div></div>
       <input name="note" placeholder="Notes" class="mt"><button class="mt">Add follow-up</button></form>
-    <ul class="mt">${items('health.appts', x => `<b>${esc(x.type)}</b> <span class="tag">${esc(x.status)}</span>${x.note ? '<br>' + esc(x.note) : ''}`, 50)}</ul></div>
-  <div class="card"><h2>Symptom log</h2>
+    <ul class="mt">${items('health.appts', x => `<b>${esc(x.type)}</b> <span class="tag">${esc(x.status)}</span>${x.note ? '<br>' + esc(x.note) : ''}`, 50)}</ul></details>
+  <details class="card more"><summary>Symptom log</summary>
     <form onsubmit="event.preventDefault();add('health.symptoms',form(this));this.reset()"><label>Symptom</label><select name="symptom">${SYMPTOMS.map(t => `<option>${t}</option>`).join('')}</select>
       <div class="row"><div><label>Date</label><input type="date" name="date" value="${today()}" required></div><div><label>Time</label><input type="time" name="time"></div></div>
       <label>What were you doing?</label><input name="activity"><label>How long did it last?</label><input name="duration" placeholder="e.g. 2 minutes"><label>Notes</label><textarea name="note" rows="2"></textarea><button class="mt">Log symptom</button></form>
-    <ul class="mt">${items('health.symptoms', x => `<b>${esc(x.symptom)}</b>${x.activity ? ' · during ' + esc(x.activity) : ''}${x.duration ? ' · ' + esc(x.duration) : ''}${x.note ? '<br>' + esc(x.note) : ''}`, 50)}</ul></div>
-  <div class="card"><h2>Medication (optional)</h2>
+    <ul class="mt">${items('health.symptoms', x => `<b>${esc(x.symptom)}</b>${x.activity ? ' · during ' + esc(x.activity) : ''}${x.duration ? ' · ' + esc(x.duration) : ''}${x.note ? '<br>' + esc(x.note) : ''}`, 50)}</ul></details>
+  <details class="card more"><summary>Medication (optional)</summary>
     <label class="chk"><input type="checkbox" ${H.med.enabled ? 'checked' : ''} onchange="S.health.med.enabled=this.checked;save();render()"> Track a GLP-1 medication</label>
     ${H.med.enabled ? `<div class="note">This app never suggests changing a dose or taking a catch-up dose. Ask your prescriber or pharmacist.</div>
       <label>Medication name</label><input value="${esc(H.med.name)}" onchange="S.health.med.name=this.value;save()"><label>Prescribed dose</label><input value="${esc(H.med.dose)}" onchange="S.health.med.dose=this.value;save()">
@@ -189,10 +185,8 @@ screens.Health = () => {
       <h3>Log a dose</h3><form onsubmit="event.preventDefault();add('health.doses',form(this));this.reset()"><div class="row"><div><label>Date</label><input type="date" name="date" value="${today()}" required></div><div><label>Time</label><input type="time" name="time"></div></div>
         <label>Dose taken</label><input name="dose"><label>Appetite</label><select name="appetite"><option value="">—</option><option>Much lower than usual</option><option>A bit lower</option><option>Usual</option><option>Higher</option></select>
         <label>Side effects</label><input name="side"><label>Notes</label><input name="note"><button class="mt">Save dose</button></form>
-      <ul class="mt">${items('health.doses', x => `${esc(x.dose) || 'Dose'}${x.appetite ? ' · appetite: ' + esc(x.appetite) : ''}${x.side ? '<br>Side effects: ' + esc(x.side) : ''}`, 20)}</ul>` : ''}</div>
-  <button class="sec" onclick="go('Clinician')">Preview summary for my clinician</button>
-  <div class="card mt"><h2>App</h2><div class="grid2"><button class="sec" onclick="go('Settings')">Settings</button><button class="sec" onclick="go('Profile')">Edit profile</button><button class="sec" onclick="go('Backup')">Backup &amp; restore</button>
-    <button class="sec" onclick="go('Device')">Check this device</button><button class="sec" onclick="demo()">Load test data</button></div></div>`;
+      <ul class="mt">${items('health.doses', x => `${esc(x.dose) || 'Dose'}${x.appetite ? ' · appetite: ' + esc(x.appetite) : ''}${x.side ? '<br>Side effects: ' + esc(x.side) : ''}`, 20)}</ul>` : ''}</details>
+  <button class="sec" onclick="go('Clinician')">Preview summary for my clinician</button>`;
 };
 
 // ---------- clinician summary (preview, then copy or download; never sent automatically) ----------
@@ -274,9 +268,9 @@ screens.Review = () => {
     <p class="mute">The review never changes training intensity or medication. Calorie targets only change through weekly auto-targets, if you turned them on in Settings.</p></div>
   <div class="card"><h2>Reminder</h2><label class="chk"><input type="checkbox" ${S.settings.reminder ? 'checked' : ''} onchange="S.settings.reminder=this.checked;save()"> Show a reminder in the app on Sundays from 9 am (UK time)</label>
     <p class="mute">The app can't send notifications when closed. For a real alert, add a repeating calendar event:</p><button class="sec" onclick="download('weekly-review.ics',ICS,'text/calendar')">Add Sunday 9 am calendar reminder (.ics)</button></div>
-  <div class="card"><h2>Share with Claude (optional)</h2><label class="chk"><input type="checkbox" ${revHealth ? 'checked' : ''} onchange="revHealth=this.checked;render()"> Include private health and medication notes</label>
-    <pre>${esc(reviewText(r, revHealth))}</pre><button class="sec" onclick="copyText(reviewText(S.reviews.find(x=>x.id==revId),revHealth))">Copy to paste into Claude</button><p class="mute">Nothing is sent unless you paste it yourself.</p></div>
-  ${S.reviews.length > 1 ? `<div class="card"><h2>Past reviews</h2><ul>${S.reviews.slice().reverse().map(x => `<li><span>${ukDate(x.from)} – ${ukDate(x.to)}</span><button onclick="revId=${x.id};render()">Open</button></li>`).join('')}</ul></div>` : ''}`;
+  <details class="card more"><summary>Share with Claude (optional)</summary><label class="chk"><input type="checkbox" ${revHealth ? 'checked' : ''} onchange="revHealth=this.checked;render()"> Include private health and medication notes</label>
+    <pre>${esc(reviewText(r, revHealth))}</pre><button class="sec" onclick="copyText(reviewText(S.reviews.find(x=>x.id==revId),revHealth))">Copy to paste into Claude</button><p class="mute">Nothing is sent unless you paste it yourself.</p></details>
+  ${S.reviews.length > 1 ? `<details class="card more"><summary>Past reviews</summary><ul>${S.reviews.slice().reverse().map(x => `<li><span>${ukDate(x.from)} – ${ukDate(x.to)}</span><button onclick="revId=${x.id};render()">Open</button></li>`).join('')}</ul></details>` : ''}`;
 };
 const ICS = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Fitness tracker//EN', 'BEGIN:VEVENT', 'UID:weekly-review-fitness', 'DTSTAMP:20260101T000000Z',
   'DTSTART;TZID=Europe/London:20260104T090000', 'DURATION:PT15M', 'RRULE:FREQ=WEEKLY;BYDAY=SU', 'SUMMARY:Run weekly fitness review', 'BEGIN:VALARM', 'TRIGGER:PT0M', 'ACTION:DISPLAY', 'DESCRIPTION:Run weekly review', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');

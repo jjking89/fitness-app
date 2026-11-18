@@ -128,13 +128,14 @@ screens.Settings = () => {
     <label>Week split</label><select onchange="S.profile.split=this.value;S.profile.splitDays=(P().days||[]).length;save();render()">${Object.entries(SPLITS).map(([v, o]) => `<option value="${v}" ${(P().split || defaultSplit((P().days || []).length)) === v ? 'selected' : ''}>${o.label}</option>`).join('')}</select>
     <label>Stick with each plan for</label><select onchange="setS('planWeeks',+this.value);if(S.plan)S.plan.weeks=+this.value;save()">${[4, 5, 6].map(n => `<option value="${n}" ${(+S.settings.planWeeks || 6) === n ? 'selected' : ''}>${n} weeks</option>`).join('')}</select>
     ${tog('Start the rest timer when I tick a set', 'autoRest')}${tog('Sound when rest ends', 'sound')}${tog('Vibrate when rest ends (not on iPhone)', 'vibrate')}
-    ${exs.length ? `<h3>Rest per exercise</h3>${exs.map(e => num(esc(e), restOf(e), `S.rest[${js(e)}]=+this.value||undefined;if(!S.rest[${js(e)}])delete S.rest[${js(e)}];save();render()`, 15, 'sec')).join('')}` : ''}</div>
+    ${exs.length ? `<details class="more"><summary>Rest per exercise</summary>${exs.map(e => num(esc(e), restOf(e), `S.rest[${js(e)}]=+this.value||undefined;if(!S.rest[${js(e)}])delete S.rest[${js(e)}];save();render()`, 15, 'sec')).join('')}</details>` : ''}</div>
   <div class="card"><h2>AI coach (Claude)</h2><p class="mute">Powers Ask coach and one-tap photo estimates. Get a key at console.anthropic.com. The key stays on this device only and is never in backups. Each send asks first, and costs a few pence.</p>
     <input type="password" autocomplete="off" placeholder="${aiKey() ? 'Key saved: paste a new one to replace it' : 'sk-ant-…'}" onchange="setAiKey(this.value)" aria-label="Claude API key">
     ${aiKey() ? `<button class="link" onclick="if(confirm('Remove the API key from this device?'))setAiKey('')">Remove key</button>` : ''}</div>
   <div class="card"><h2>Reminders</h2>${tog('Show the weekly review on Sunday from 9 am', 'reminder')}
     <p class="mute">The review is built for you either way. Calendar reminder: Health → Weekly review.</p></div>
-  <div class="card"><h2>More</h2><div class="grid2"><button class="sec" onclick="go('Profile')">Profile answers</button><button class="sec" onclick="go('Backup')">Backup &amp; restore</button></div></div>`;
+  <div class="card"><h2>More</h2><div class="grid2"><button class="sec" onclick="go('Profile')">Profile answers</button><button class="sec" onclick="go('Backup')">Backup &amp; restore</button>
+    <button class="sec" onclick="go('Device')">Check this device</button><button class="sec" onclick="demo()">Load test data</button></div></div>`;
 };
 
 // ---------- Weekly coaching: what worked, what to improve, and how ----------

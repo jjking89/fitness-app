@@ -45,15 +45,19 @@ const KW = FOODS.flatMap(f => f[0].map(k => [k, f])).sort((a, b) => b[0].length 
 const NUMW = {a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, half: .5, 'a half': .5, quarter: .25, 'a quarter': .25, 'a third': 1 / 3, third: 1 / 3, 'two thirds': 2 / 3, 'three quarters': .75, 'a couple of': 2, couple: 2};
 const METRIC = {g: 1, gram: 1, grams: 1, kg: 1000, ml: 1, l: 1000, litre: 1000, litres: 1000, pint: 568, pints: 568, tbsp: 15, tablespoon: 15, tablespoons: 15, tsp: 5, teaspoon: 5, teaspoons: 5};
 const UNITW = 'slices?|pieces?|cups?|mugs?|glass(?:es)?|scoops?|rashers?|bowls?|cans?|tins?|handfuls?|portions?|servings?|fillets?|splash';
-const lookupFood = txt => { const t = ' ' + txt.toLowerCase() + ' '; return KW.find(([k]) => new RegExp(`\\b${k}\\b`).test(t))?.[1]; };
+// Foods learned from Claude lookups (saved on this device) are checked first, then the built-in bank; longest phrase wins.
+const lookupFood = txt => { const t = ' ' + txt.toLowerCase() + ' '; return (S.foods || []).find(f => t.includes(' ' + f[0][0] + ' ')) || KW.find(([k]) => new RegExp(`\\b${k}\\b`).test(t))?.[1]; };
+const DISHES = /\b(rice|ackee|fish|cod|bun|mac|sweet) (?:and|&|n) (peas|saltfish|chips|cheese|sour)\b/g; // dish names that contain "and"
 const fracOf = w => /%/.test(w) ? parseFloat(w) / 100 : NUMW[w] ?? (parseFloat(w) || 1);
 
 function parseFood(txt) {
   let t = txt.toLowerCase().trim().replace(/^(?:i |then |and |also |plus |some |a bit of |had |ate )+/, '').replace(/^(?:the|my|some)\s+/, '');
-  const numRe = new RegExp(`^(\\d+(?:\\.\\d+)?|${Object.keys(NUMW).sort((a, b) => b.length - a.length).join('|')})\\s*(?:of\\s+)?`);
+  const numRe = new RegExp(`^(\\d+(?:\\.\\d+)?|(?:${Object.keys(NUMW).sort((a, b) => b.length - a.length).join('|')})(?![a-z]))\\s*(?:of\\s+)?`); // number words must be whole words ("a" not the start of "ackee")
   let n = null, unit = null, m = t.match(numRe);
   if (m) { n = isNaN(m[1]) ? NUMW[m[1]] : +m[1]; t = t.slice(m[0].length); }
-  m = t.match(new RegExp(`^(${Object.keys(METRIC).join('|')}|${UNITW})\\b\\s*(?:of\\s+)?`));
+  const tail = t.match(/\s+(\d+(?:\.\d+)?)\s*(g|grams?|ml|kg)$/); // trailing amount: "jerk chicken 250g"
+  if (tail && n == null) { n = +tail[1]; unit = tail[2].startsWith('g') ? 'g' : tail[2]; t = t.slice(0, tail.index); }
+  m = unit ? null : t.match(new RegExp(`^(${Object.keys(METRIC).join('|')}|${UNITW})\\b\\s*(?:of\\s+)?`));
   if (m) { unit = m[1]; t = t.slice(m[0].length); }
   t = t.replace(/^(?:the|my|some)\s+/, '').trim();
   if (!t) return null;
@@ -71,7 +75,7 @@ const findItem = (items, f) => f && (items.find(x => f.fam && x.fam === f.fam) |
 function applyText(d, text) {
   const t = text.toLowerCase().replace(/\b(?:for (?:breakfast|lunch|dinner|tea|supper)|this morning|today|tonight|earlier)\b/g, '')
     .replace(/^\s*(?:i(?:'ve| have)? (?:had|ate|eaten)|i just had)\s+/, '');
-  for (let c of t.split(/,|;|\.|\band\b|\bplus\b/)) {
+  for (let c of t.replace(DISHES, '$1_and_$2').split(/,|;|\.|\band\b|\bplus\b/)) {
     c = c.trim().replace(/^(?:i |so |but |oh |um |then )+/, '').trim();
     if (!c) continue;
     let m;
@@ -245,7 +249,7 @@ screens.Meal = () => {
         <div class="grid2 mt"><input name="kcal" type="number" inputmode="decimal" step="any" placeholder="kcal" required><input name="p" type="number" inputmode="decimal" step="any" placeholder="Protein g"><input name="c" type="number" inputmode="decimal" step="any" placeholder="Carbs g"><input name="f" type="number" inputmode="decimal" step="any" placeholder="Fat g"><input name="fb" type="number" inputmode="decimal" step="any" placeholder="Fibre g"></div>
         <button class="mt">Use packet values</button></form>` : ''}</li>`; }).join('')}</ul></div>
   <div class="card"><div class="sec-h"><div><span class="big">${Math.round(k)}</span> kcal${est ? ' <span class="tag">estimate</span>' : ''}</div><div class="mute" style="text-align:right">P ${n1(p)} · C ${n1(c)} · F ${n1(f)} g<br>Fibre ${n1(fb)} g</div></div>
-    ${unknown ? `<p class="mute">${unknown} item(s) have no values yet: rename them or add packet values.</p>` : ''}
+    ${unknown ? `<p class="mute">${unknown} item(s) have no values yet: rename them or add packet values.</p>${aiKey() ? `<button class="sec" ${estBusy ? 'disabled' : ''} onclick="lookupUnknown()">${estBusy ? 'Looking up…' : '✨ Look up with Claude'}</button>` : ''}` : ''}
     <button class="mt" onclick="confirmMeal()">Save ${d.slot ? d.slot.toLowerCase() : 'meal'}</button></div>
   <details class="card more"><summary>Add more or correct</summary>${input('e.g. “that was chicken thigh, I only ate half the rice”').replace(/^<div class="card">|<\/div>$/g, '')}
     <div class="grid2 mt"><button class="sec" onclick="speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Photo</button></div>
@@ -268,14 +272,12 @@ screens.Food = () => {
   const t = dayTotals();
   return `<h1 class="xl">Food</h1>${seg([['Diary', "go('Food')"], ['Meal Planner', "go('MealPlan')"], ['Groceries', "go('Shopping')"]], 'Diary')}
   ${has(P().allergies) ? `<div class="note"><b>Allergies:</b> ${esc(P().allergies)}</div>` : ''}
-  ${mealActions()}${quickFood()}
-  ${macroCard(t)}<div class="card"><h2>Today</h2>${macroRow('Calories', t.kcal, P().kcal, 'kcal')}${macroRow('Protein', t.protein, P().protein, 'g')}${macroRow('Carbs', t.carbs, P().carbs, 'g')}${macroRow('Fat', t.fat, P().fat, 'g')}${macroRow('Fibre', t.fibre, P().fibre, 'g')}${macroRow('Water', t.water, P().waterGoal, 'ml')}
-    <div class="grid2 mt"><button class="sec" onclick="add('water',{ml:250})">+250 ml water</button><button class="sec" onclick="add('water',{ml:500})">+500 ml water</button></div></div>
+  ${macroCard(t)}${mealActions()}${quickFood()}
   ${S.favs.length ? `<div class="card"><h2>Favourites</h2><ul>${S.favs.map(f => `<li><span>⭐ ${esc(f.name)}<br><span class="mute">${mealInfo(f)}</span></span><span style="white-space:nowrap"><button onclick="repeatMeal(${js(f)})">+ Add</button><button onclick="S.favs=S.favs.filter(x=>x.id!=${f.id});save();render()" aria-label="Remove favourite">✕</button></span></li>`).join('')}</ul></div>` : ''}
   
   <div class="card"><h2>Diary</h2><ul>${S.meals.slice().sort(byDateDesc).slice(0, 25).map(m => `<li><span>${m.photo ? `<img class="thumb" src="${m.photo}" alt=""> ` : ''}${esc(m.name)}${m.est ? '<span class="tag">estimate</span>' : ''}<br><span class="mute">${mealInfo(m)}<br>${ukDate(m.date)}</span></span>
     <span style="white-space:nowrap"><button onclick="repeatMeal(${js(pick(m, MEAL_KEYS))})" aria-label="Repeat today">↻</button><button onclick="favMeal(${m.id})" aria-label="Add to favourites">☆</button><button onclick="editEntry('meals',${m.id})">Edit</button><button onclick="del('meals',${m.id})" aria-label="Delete">✕</button></span></li>`).join('') || '<li class="mute">Nothing logged yet</li>'}</ul></div>
-  <div class="card"><h2>Water log</h2><ul>${items('water', w => w.ml + ' ml', 8)}</ul></div>`;
+  <details class="card more"><summary>Water log</summary><ul>${items('water', w => w.ml + ' ml', 8)}</ul></details>`;
 };
 
 // ---------- meal planner ----------

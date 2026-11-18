@@ -9,7 +9,7 @@ body{margin:0;font:17px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-
 h1{font-size:32px;line-height:1.15;letter-spacing:-.02em;margin:var(--s2) 0 var(--s1);font-weight:800}
 h1+p.mute{margin-top:0}
 h2{font-size:19px;letter-spacing:-.01em;margin:0 0 var(--s2);font-weight:700}
-h3{font-size:15px;margin:var(--s4) 0 var(--s1);text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
+h3{font-size:15px;margin:var(--s5) 0 var(--s1);text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
 p{margin:var(--s2) 0}
 a{color:var(--acc)}
 :focus-visible{outline:3px solid var(--acc);outline-offset:2px}
@@ -20,14 +20,14 @@ a{color:var(--acc)}
 label{display:block;font-size:14px;font-weight:600;color:var(--mute);margin:var(--s3) 0 var(--s1)}
 label.chk{display:flex;gap:var(--s3);align-items:center;color:var(--ink);font-size:16px;font-weight:400;min-height:44px}
 label.chk input{width:24px;height:24px;flex:none;accent-color:var(--acc)}
-input,select,textarea{width:100%;font:inherit;padding:12px 14px;min-height:48px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);transition:border-color .15s}
+input,select,textarea{width:100%;font:inherit;padding:12px 14px;min-height:48px;border:1.5px solid var(--line);border-radius:var(--r-sm);color:var(--ink);transition:border-color .15s}
 input:focus,select:focus,textarea:focus{border-color:var(--acc);outline:none;box-shadow:0 0 0 3px var(--acc-soft)}
 input[type=checkbox],input[type=radio]{min-height:0}
 /* buttons: primary (default) / secondary (.sec) / tertiary (.link) */
 button{font:inherit;min-height:50px;padding:12px 16px;border:0;border-radius:var(--r-sm);background:var(--acc);color:#fff;font-weight:650;width:100%;cursor:pointer;transition:transform .08s,filter .15s}
 @media (prefers-color-scheme:dark){button{color:#0a1040}}
 button:active{transform:scale(.98);filter:brightness(.95)}
-button.sec{background:var(--sec);color:var(--ink)}
+button.sec{color:var(--ink)}
 button.link{background:none;color:var(--acc);min-height:44px;font-weight:600}
 button:disabled{opacity:.4;transform:none}
 .mt{margin-top:var(--s2)}
@@ -41,8 +41,8 @@ li button:active{background:var(--sec)}
 .tag.warn{background:var(--warn);color:#fff}
 @media (prefers-color-scheme:dark){.tag.warn{color:#2a0000}}
 /* bottom nav */
-nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:color-mix(in srgb,var(--card) 92%,transparent);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-top:1px solid var(--line);padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);z-index:5}
-nav button{background:none;color:var(--mute);border-radius:0;min-height:60px;font-size:11px;font-weight:600;padding:6px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+nav{position:fixed;display:flex;z-index:5}
+nav button{background:none;color:var(--mute);border-radius:0;font-size:11px;font-weight:600;padding:6px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 nav button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 nav button.on{color:var(--acc)}
 nav button.on svg{stroke-width:2.4}
@@ -72,7 +72,7 @@ nav button:active{transform:none}
 .set.done input{opacity:.7}
 .set.mute{margin-bottom:0;font-weight:600;text-transform:uppercase;font-size:12px;letter-spacing:.04em}
 /* rest timer */
-#timer{position:fixed;left:calc(8px + env(safe-area-inset-left));right:calc(8px + env(safe-area-inset-right));bottom:calc(70px + env(safe-area-inset-bottom));max-width:624px;margin:0 auto;background:var(--card);border:2px solid var(--acc);border-radius:var(--r);padding:var(--s2) var(--s3);display:none;z-index:6;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+#timer{position:fixed;left:calc(8px + env(safe-area-inset-left));right:calc(8px + env(safe-area-inset-right));max-width:624px;margin:0 auto;background:var(--card);border:2px solid var(--acc);border-radius:var(--r);padding:var(--s2) var(--s3);display:none;z-index:6;box-shadow:0 6px 24px rgba(0,0,0,.18)}
 #timer.over{border-color:var(--warn);animation:flash 1s infinite}
 @keyframes flash{50%{background:var(--warn);color:#fff}}
 @media (prefers-reduced-motion:reduce){#timer.over{animation:none;background:var(--warn);color:#fff}button{transition:none}}
@@ -102,9 +102,6 @@ button.pill .ic{width:18px;height:18px}
 .meal .mb{flex:1;min-width:0}.meal .mb .mute{font-size:13px}
 .meal button.pill{background:var(--acc);color:#fff;box-shadow:none}
 @media (prefers-color-scheme:dark){.meal button.pill{color:#0a1040}}
-.seg{display:flex;gap:var(--s4);border-bottom:1px solid var(--line);margin:var(--s2) 0 var(--s3);overflow-x:auto}
-.seg button{width:auto;flex:none;background:none;color:var(--mute);border-radius:0;padding:10px 2px;min-height:44px;border-bottom:3px solid transparent;font-weight:600}
-.seg button.on{color:var(--acc);border-bottom-color:var(--acc)}
 .act3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2);margin:var(--s3) 0}
 .act3 button{display:flex;flex-direction:column;align-items:center;gap:6px;min-height:76px;font-size:14px;line-height:1.2;padding:10px 4px;background:var(--card);color:var(--ink);border-radius:var(--r);box-shadow:var(--shadow)}
 .act3 .ic{color:var(--acc);width:24px;height:24px}
@@ -127,11 +124,10 @@ button.chk{width:44px;min-height:44px;padding:0;background:none;display:grid;pla
 button.chk svg{width:26px;height:26px;fill:none;stroke:var(--line);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .wset.done button.chk svg{stroke:#16a34a}
 button.addrow{background:none;color:var(--mute);font-size:24px;font-weight:400;min-height:44px;opacity:.6}
-.wbar{position:sticky;bottom:calc(68px + env(safe-area-inset-bottom));display:flex;gap:var(--s2);margin-top:var(--s3);padding:var(--s2);background:var(--card);border-radius:var(--r);box-shadow:0 4px 18px rgba(30,40,90,.15);z-index:4}
+.wbar{position:sticky;display:flex;gap:var(--s2);margin-top:var(--s3);padding:var(--s2);background:var(--card);border-radius:var(--r);box-shadow:0 4px 18px rgba(30,40,90,.15);z-index:4}
 button.sq{width:50px;flex:none;padding:0;display:grid;place-items:center}
 .wbar button.pill{flex:1;width:auto;border-radius:999px;background:var(--acc);color:#fff;justify-content:center}
 @media (prefers-color-scheme:dark){.wbar button.pill{color:#0a1040}}
-body:has(.wbar) #timer{bottom:calc(140px + env(safe-area-inset-bottom))}
 /* coach card */
 .coach-h{font-weight:700;margin-bottom:var(--s2)}
 .coach-i{border-top:1px solid var(--line);padding:var(--s3) 0}
@@ -174,7 +170,6 @@ body{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 .hero h2{font-size:24px;margin:2px 0}
 .exl{min-height:0;padding:var(--s2) 0}
 .exn{line-height:1.35}
-h3{margin-top:var(--s5)}
 .exl button{white-space:nowrap;flex:none;min-width:0;padding:4px 6px}
 /* scrolling: let the page scroll natively on iOS; clip sideways overflow on the content only */
 #app{overflow-x:clip}

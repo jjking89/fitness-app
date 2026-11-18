@@ -21,14 +21,13 @@ const QUESTIONS = [
   ['fibre', 'Do you already use a daily fibre target? (g)', 'number'],
   ['clinician', 'Any current guidance from a doctor, physio or other clinician that affects training? (You can add dated notes in Health later.)', 'textarea'],
 ];
-const EXTRA = [['session', 'Workout length, not counting rests (min)'], ['carbs', 'Carbs target (g/day)'], ['fat', 'Fat target (g/day)'], ['waterGoal', 'Water goal (ml/day)'], ['stepGoal', 'Step goal (per day)']];
 
 const uid = () => Date.now() + Math.random();
 const blank = () => ({
   v: VERSION, profile: {session: 45}, iv: 0,
   weights: [], body: [], meals: [], favs: [], water: [], steps: [], sleep: [], workouts: [], routines: [], reviews: [],
   gyms: [], gymId: null, prefs: {}, rest: {}, week: {days: {}}, active: null, timer: null, records: {},
-  mealPlan: {slots: {}, ticks: {}}, pending: null, coach: {history: [], tdee: null},
+  mealPlan: {slots: {}, ticks: {}}, pending: null, coach: {history: [], tdee: null}, foods: [],
   health: {notes: [], appts: [], symptoms: [], doses: [], med: {enabled: false, name: '', dose: '', start: ''}, constraints: {avoid: '', hr: '', intensity: ''}},
   settings: {autoRest: true, sound: true, vibrate: true, reminder: false, speechConsent: false, autoTargets: null, weighDay: 'Mon'},
 });
@@ -76,7 +75,6 @@ const gb = v => n1(v).toLocaleString('en-GB');
 const form = f => Object.fromEntries(new FormData(f));
 const getList = path => path.split('.').reduce((o, k) => o[k], S);
 const setList = (path, arr) => { const ks = path.split('.'), last = ks.pop(); ks.reduce((o, k) => o[k], S)[last] = arr; };
-const todays = path => getList(path).filter(x => x.date === today());
 const byDateDesc = (a, b) => (b.date || '') + (b.time || '') > (a.date || '') + (a.time || '') ? 1 : -1;
 const add = (path, obj) => { getList(path).push({id: uid(), date: today(), ...obj}); save(); render(); };
 function del(path, id) {
@@ -146,8 +144,6 @@ screens.Interview = () => {
 };
 screens.Profile = () => `<h1>Profile</h1><p class="mute">Tap an answer to change just that one.</p>
   <div class="card"><ul>${QUESTIONS.map(([k, q]) => `<li onclick="editAnswer('${k}')" style="cursor:pointer"><span>${q}<br><b>${showAnswer(P()[k])}</b></span><span class="mute">Edit</span></li>`).join('')}</ul></div>
-  <div class="card"><h2>Optional targets</h2><p class="mute">Leave blank if you don't use them.</p>
-    ${EXTRA.map(([k, l]) => `<label for="x_${k}">${l}</label><input id="x_${k}" type="number" inputmode="decimal" step="any" value="${esc(P()[k] ?? '')}" onchange="P()['${k}']=this.value;save()">`).join('')}</div>
   ${!P().done ? `<button onclick="go('Interview')">Continue setup</button>` : ''}`;
 
 // ---------- generic edit for any logged entry ----------

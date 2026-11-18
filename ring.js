@@ -29,7 +29,7 @@ function readSleepCsv(input) {
 }
 function ringCard() {
   const last7 = S.sleep.filter(s => s.date >= dayOffset(-7)), avg = k => { const v = last7.map(s => +s[k]).filter(Boolean); return v.length ? n1(v.reduce((a, b) => a + b, 0) / v.length) : null; };
-  return `<div class="card"><h2>Smart ring</h2>
+  return `<details class="card more"><summary>Smart ring</summary>
     <label>Ring</label><select onchange="S.settings.ringBrand=this.value;save();render()"><option value="">Not chosen</option>${RING.brands.map(b => `<option ${S.settings.ringBrand === b ? 'selected' : ''}>${b}</option>`).join('')}</select>
     <p class="mute">Status: <b>${RING.connected() ? 'connected' : 'not connected yet'}</b>. A live connection will come later. Until then, export sleep data from your ring's app as CSV and import it here.</p>
     <div class="grid2"><button class="sec" disabled>Connect ring (coming soon)</button><button class="sec" onclick="document.getElementById('sleepCsv').click()">Import sleep CSV</button></div>
@@ -38,5 +38,5 @@ function ringCard() {
       <ul>${ringPreview.rows.slice(0, 5).map(e => `<li>${ukDate(e.date)} · ${fmtHours(+e.hours)}<br><span class="mute">${sleepExtras(e)}</span></li>`).join('')}</ul>
       <div class="grid2"><button onclick="S.sleep.push(...ringPreview.rows);ringPreview=null;save();render()" ${ringPreview.rows.length ? '' : 'disabled'}>Import</button><button class="sec" onclick="ringPreview=null;render()">Cancel</button></div></div>` : ''}
     ${last7.length ? `<h3>Last 7 nights</h3><div class="grid3">${[['Sleep', avg('hours'), 'h'], ['Deep', avg('deep'), 'h'], ['REM', avg('rem'), 'h'], ['HRV', avg('hrv'), 'ms'], ['Resting HR', avg('rhr'), 'bpm'], ['Score', avg('score'), '']].map(([l, v, u]) => `<div><div class="mute">${l}</div><b>${v ?? '–'}</b> ${v != null ? u : ''}</div>`).join('')}</div>` : ''}
-    <p class="mute">Heart readings from the ring are for your records. They never set training intensity or targets; your care team decides those.</p></div>`;
+    <p class="mute">Heart readings from the ring are for your records. They never set training intensity or targets; your care team decides those.</p></details>`;
 }

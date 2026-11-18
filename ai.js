@@ -73,3 +73,22 @@ async function estimatePhoto() {
   } catch (e) { alert(e.message); }
   estBusy = false; save(); render();
 }
+
+// ---------- unknown foods: ask Claude once, then remember the values on this device ----------
+async function lookupUnknown() {
+  const d = S.draft, unk = d?.items.filter(x => x.src === 'unknown'); if (!unk?.length || estBusy) return;
+  if (!aiKey()) return go('Settings');
+  if (!confirm(`Send ${unk.map(x => '"' + x.name + '"').join(', ')} (names and grams only) to Anthropic's Claude for typical UK values? They'll be remembered for next time.`)) return;
+  estBusy = true; render();
+  try {
+    const reply = await claude('You give typical UK nutrition values for foods, restaurant dishes and takeaways (e.g. Nandos, Wagamama, Caribbean, Italian, Japanese, fast food). Reply only in the requested line format.',
+      [{role: 'user', content: `For each food, give values for the stated grams, one line each, same order, no other text: name | grams | kcal | protein g | carbs g | fat g | fibre g
+${unk.map(x => `${x.name} | ${x.grams}`).join('\n')}`}], 1500);
+    const got = parsePasted(reply);
+    unk.forEach((x, i) => { const g = got[i]; if (!g) return;
+      Object.assign(x, {per100: g.per100, src: 'paste', fam: x.fam || ''});
+      S.foods = (S.foods || []).filter(f => f[0][0] !== x.name.toLowerCase()); S.foods.push([[x.name.toLowerCase()], x.name, '', g.per100, x.grams, x.grams, true]); });
+    if (!got.length) throw new Error("Couldn't read values from the reply. Add packet values instead.");
+  } catch (e) { alert(e.message); }
+  estBusy = false; save(); render();
+}

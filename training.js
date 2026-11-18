@@ -57,7 +57,6 @@ function estMinutes(items, skipOptional = false) { // total time, rests included
 }
 const liftMinutes = items => Math.round(estMinutes(items) - restMin(items)); // warm-up, sets and moving, no rests
 const timeLabel = items => `~${liftMinutes(items)} min workout · ~${estMinutes(items)} min with rests`;
-const accRank = n => (isCompound(n) ? 1 : 0) + (libOf(n)[2].every(e => e === 'Resistance bands') ? 2 : 0);
 const totalCap = () => +S.settings.totalCap || 60;
 // Movement patterns, best "whole muscle" choice first. A body part = one main movement + one that finishes it off
 // (e.g. flat press hits the whole chest, a fly adds the stretch). Max 2–3 exercises per body part in a session.
@@ -355,18 +354,11 @@ function tick() {
 // ---------- Training screen ----------
 screens.Training = () => {
   if (S.active) return activeWorkout();
-  const tr = todaysRoutine(), g = gym();
+  const tr = todaysRoutine();
   return `<h1 class="xl">Training</h1>${seg([['Routines', "go('Training')"], ['Planner', "go('Planner')"], ['Gyms', "go('Gyms')"]], 'Routines')}<p class="mute">${P().session} min workouts, plus rests${Array.isArray(P().days) ? ' · ' + P().days.join(', ') : ''}</p>
-  <div class="card"><label>Gym</label><select onchange="S.gymId=+this.value;save();render()">${S.gyms.map(x => `<option value="${x.id}" ${x.id == g.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
-    <button class="sec mt" onclick="go('Gyms')">Gyms, equipment &amp; preferences</button></div>
   ${latestGuidance() || has(P().clinician) ? guidanceBlock() : ''}
   ${planCards(tr)}
-  <div class="card"><h2>Rest timer</h2>
-    <label class="chk"><input type="checkbox" ${S.settings.autoRest ? 'checked' : ''} onchange="S.settings.autoRest=this.checked;save()"> Start automatically when I tick a set</label>
-    <label class="chk"><input type="checkbox" ${S.settings.sound ? 'checked' : ''} onchange="S.settings.sound=this.checked;save()"> Sound at end of rest</label>
-    <label class="chk"><input type="checkbox" ${S.settings.vibrate ? 'checked' : ''} onchange="S.settings.vibrate=this.checked;save()"> Vibrate at end of rest (where supported)</label></div>
-  <div class="card"><h2>Best lifts</h2><ul>${Object.entries(S.records).map(([e, r]) => `<li><span>${esc(e)}</span><span>${r.kg} kg × ${r.reps} · ${ukDate(r.date)}</span></li>`).join('') || '<li class="mute">None yet</li>'}</ul></div>
-  <div class="card"><h2>Set history</h2><ul>${items('workouts', w => `${esc(w.exercise)} — ${w.reps || '?'} reps${w.kg ? ' @ ' + w.kg + ' kg' : ''}${w.note ? '<br><span class="mute">' + esc(w.note) + '</span>' : ''}`)}</ul></div>`;
+  <button class="link mt" onclick="progTab='Training';go('Progress')">See progress →</button>`;
 };
 const est1RM = r => r ? n1(r.kg * (1 + r.reps / 30)) : null; // Epley, from best logged set
 const rbtn = (icon, label, act) => `<button class="rnd" onclick="${act}" aria-label="${label}">${ic(IC[icon])}</button>`;
