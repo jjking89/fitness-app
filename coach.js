@@ -109,7 +109,7 @@ screens.Settings = () => {
   <div class="card"><h2>Weight goal</h2>
     <label>Main goal</label><select onchange="S.profile.goal=this.value;save();render()">${QUESTIONS.find(q => q[0] === 'goal')[3].map(o => `<option ${P().goal === o ? 'selected' : ''}>${o}</option>`).join('')}</select>
     ${num('Goal weight', P().goalWeight, "S.profile.goalWeight=+this.value||'';retarget()", .1, 'kg')}
-    <label>How fast</label><div class="chips">${['Slow (about 1 kg a week)', 'Medium (about 1.5 kg a week)', 'Fast (about 2 kg a week)'].map(o => `<button class="chip ${P().pace === o ? 'on' : ''}" onclick="S.profile.pace=${esc(js(o))};S.profile.kgPerWeek=${o.match(/\d+(?:\.\d+)?(?= kg)/)[0]};retarget()">${o.split(' (')[0]}<br><small>${o.match(/\((.*)\)/)[1]}</small></button>`).join('')}</div>
+    <label>How fast</label><div class="chips">${['Slow (about 1 kg a week)', 'Medium (about 1.5 kg a week)', 'Fast (about 2 kg a week)'].map(o => `<button class="chip ${P().pace === o ? 'on' : ''}" onclick="S.profile.pace=${js(o)};S.profile.kgPerWeek=${o.match(/\d+(?:\.\d+)?(?= kg)/)[0]};retarget()">${o.split(' (')[0]}<br><small>${o.match(/\((.*)\)/)[1]}</small></button>`).join('')}</div>
     ${num('Or exact kg per week', P().kgPerWeek, "S.profile.kgPerWeek=+this.value||'';S.profile.pace='';retarget()", .05, 'kg/week')}
     ${num('Lowest daily calories', kcalFloor(), "S.settings.kcalFloor=Math.max(1500,+this.value||1800);retarget()", 50, 'kcal')}
     <p class="mute">Targets never go below this. If your pace needs fewer calories, the app holds this level and your real rate will be a bit slower. Early weeks often drop faster (water).</p>

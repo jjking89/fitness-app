@@ -226,12 +226,12 @@ screens.Meal = () => {
   // Step 1: choose how to log
   if (!d.items.length && !d.photos.length && !d.mode) return `${head}
     <div class="acts4"><button class="sec" onclick="photoIn.click()"><b>📷</b>Photo</button><button class="sec" onclick="scanBarcode()"><b>▥</b>Barcode</button><button class="sec" onclick="S.draft.mode='speak';render();speak()"><b>🎤</b>Speak</button><button class="sec" onclick="S.draft.mode='type';render();document.getElementById('mealText').focus()"><b>⌨️</b>Type</button></div>
-    ${rec.length ? `<h3>Recent</h3><div class="card"><ul>${rec.map(m => `<li><span>${esc(m.name)}<br><span class="mute">${gb(m.kcal)} kcal</span></span><button onclick="S.draft=null;repeatMeal({...${esc(js(pick(m, MEAL_KEYS)))},slot:${esc(js(d.slot || slotOf(m)))}});go('Today')">+ Add</button></li>`).join('')}</ul></div>` : ''}${more}`;
+    ${rec.length ? `<h3>Recent</h3><div class="card"><ul>${rec.map(m => `<li><span>${esc(m.name)}<br><span class="mute">${gb(m.kcal)} kcal</span></span><button onclick="S.draft=null;repeatMeal({...${js(pick(m, MEAL_KEYS))},slot:${js(d.slot || slotOf(m))}});go('Today')">+ Add</button></li>`).join('')}</ul></div>` : ''}${more}`;
   // Step 2: describe it (typed, spoken or photo)
   if (!d.items.length) return `${head}
     ${d.photos.map((ph, i) => `<img src="${ph}" alt="Meal photo ${i + 1}" class="mphoto">`).join('')}
     ${d.photos.length && aiKey() ? (estBusy ? '<p class="center"><b>Working out your meal…</b></p>' : `<div class="card"><b>Where's it from?</b>
-      <div class="chips">${['Home-cooked', "Nando's", 'Wagamama', 'Caribbean takeaway', 'Chinese takeaway', 'Indian takeaway', 'Fast food'].map(w => `<button class="chip" onclick="S.draft.where=${esc(js(w))};estimatePhoto()">${esc(w)}</button>`).join('')}</div>
+      <div class="chips">${['Home-cooked', "Nando's", 'Wagamama', 'Caribbean takeaway', 'Chinese takeaway', 'Indian takeaway', 'Fast food'].map(w => `<button class="chip" onclick="S.draft.where=${js(w)};estimatePhoto()">${esc(w)}</button>`).join('')}</div>
       <form class="row" onsubmit="event.preventDefault();S.draft.where=this.w.value.trim();estimatePhoto()"><input name="w" placeholder="Somewhere else? e.g. Pizza Express"><button style="flex:0 0 auto;width:auto">Go</button></form>
       <button class="link" onclick="S.draft.where='';estimatePhoto()">Not sure, just estimate</button></div><p class="mute center">or describe it:</p>`) : ''}
     ${input(d.mode === 'speak' ? 'Say what you ate' : 'What did you eat?')}

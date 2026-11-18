@@ -22,7 +22,7 @@ const QUESTIONS = [
   ['prepTime', 'Time you can spend preparing a typical meal? (minutes)', 'number'],
   ['goalWeight', 'What weight would you like to get to? (kg)', 'number'],
   ['pace', 'How fast do you want to get there?', 'select', ['Slow (about 1 kg a week)', 'Medium (about 1.5 kg a week)', 'Fast (about 2 kg a week)']],
-  ['clinician', 'Any current guidance from a doctor, physio or other clinician that affects training? (You can add dated notes in Health later.)', 'textarea'],
+  ['clinician', 'Any current guidance from a doctor, physio or other clinician that affects training?', 'textarea'],
 ];
 
 const CHIP_SETS = {
@@ -205,8 +205,9 @@ let pendingImport = null;
 async function readImport(text) {
   let d;
   try { d = JSON.parse(text); if (!d || typeof d !== 'object' || !d.profile) throw 0; } catch { alert('Not a valid backup file.'); return; }
+  d.includesHealth ??= !!d.health && Object.values(d.health).some(v => Array.isArray(v) && v.length); // backups made before the flag existed
   const mine = S; S = d; migrate(); d = S; S = mine; // upgrade backup through the same path as stored data
-  const rows = LISTS.filter(l => !l.startsWith('health.') || d.includesHealth !== false && getListFrom(d, l).length).map(l => {
+  const rows = LISTS.filter(l => !l.startsWith('health.') || d.includesHealth && getListFrom(d, l).length).map(l => {
     const cur = getList(l), ids = new Set(cur.map(x => String(x.id))), sigs = new Set(cur.map(sig)), inFile = getListFrom(d, l);
     return {l, total: inFile.length, fresh: inFile.filter(x => !ids.has(String(x.id)) && !sigs.has(sig(x)))};
   });
@@ -232,6 +233,8 @@ function applyImport(mode) {
     rows.forEach(r => getList(r.l).push(...r.fresh));
     if (!P().done && d.profile.done) S.profile = Object.assign({}, d.profile, {clinician: P().clinician ?? d.profile.clinician});
     for (const g of d.gyms || []) if (!S.gyms.some(x => x.id == g.id)) S.gyms.push(g);
+    for (const k of ['barcodes', 'done', 'rest', 'prefs']) S[k] = {...(d[k] || {}), ...(S[k] || {})}; // this device wins on clashes
+    for (const f of d.foods || []) if (!S.foods.some(x => x[0][0] === f[0][0])) S.foods.push(f);
     if (d.includesHealth) { // fill blank medication / care-team fields from the backup, never overwrite what's here
       for (const k of ['name', 'dose', 'start']) if (!S.health.med[k]) S.health.med[k] = d.health.med[k];
       S.health.med.enabled ||= d.health.med.enabled;
@@ -253,7 +256,7 @@ const NAV_ICON = Object.fromEntries(Object.entries({
 let cur = 'Today';
 const TAB_OF = {Settings: 'Today', Coach: 'Today', Meal: 'Food', Gyms: 'Training', Generate: 'Training', Routine: 'Training', Planner: 'Training', Interview: 'Today', Profile: 'Health', Backup: 'Health', Import: 'Health',
   Meal: 'Food', MealPlan: 'Food', Shopping: 'Food', BodyImport: 'Progress', Review: 'Today', Clinician: 'Health', Device: 'Health'};
-function go(s) { cur = s; if (typeof busyFor !== 'undefined') busyFor = null; render(); scrollTo(0, 0); }
+function go(s) { if (!['Interview', 'Generate'].includes(s)) ivSingle = null; cur = s; if (typeof busyFor !== 'undefined') busyFor = null; render(); scrollTo(0, 0); }
 function render() {
   coachTick(); autoReview();
   app.innerHTML = screens[cur]();

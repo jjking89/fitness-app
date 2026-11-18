@@ -373,7 +373,7 @@ function activeWorkout() {
   ${a.items.map((it, i) => {
     const lt = lastTime(it.ex), pr = S.records[it.ex], alts = busyFor === i ? alternatives(it.ex) : null, rm = est1RM(pr);
     return `<div class="card ${i === curIdx ? 'cur' : ''}"><div class="exh"><h2>${i + 1}. ${esc(it.ex)}${prefTag(it.ex)}${it.optional ? '<span class="tag">optional</span>' : ''}</h2>${rm ? `<span class="rm">est. 1RM: ${gb(rm)}</span>` : ''}</div>
-    <div class="mute">${it.ss ? `<span class="tag">superset ${it.ss === 'a' ? '1/2: then go straight to the next exercise' : '2/2: rest after this'}</span><br>` : ''}${it.target ? 'Target: ' + it.sets.length + ' × ' + esc(it.target) + ' · ' : ''}Last time: ${lt ? lt.map(w => `${w.reps || '?'}×${w.kg || 0}`).join(', ') + ' kg' : '—'}<br>Best: ${pr ? `${pr.kg} kg × ${pr.reps} (${ukDate(pr.date)})` : '—'}</div>
+    <div class="mute">${it.ss ? `<span class="tag">superset ${it.ss === 'a' ? '1/2: then go straight to the next exercise' : '2/2: rest after this'}</span><br>` : ''}${it.target ? 'Target: ' + it.sets.length + ' × ' + esc(it.target) + ' · ' : ''}Last time: ${lt ? lt.map(w => `${esc(w.reps || '?')}×${esc(w.kg || 0)}`).join(', ') + ' kg' : '—'}<br>Best: ${pr ? `${pr.kg} kg × ${pr.reps} (${ukDate(pr.date)})` : '—'}</div>
     ${it.sets.map((s, j) => `<div class="wset ${s.done ? 'done' : ''} ${i === curIdx && j === cj ? 'now' : ''}"><span class="badge ${s.warmup ? 'w' : ''}">${s.warmup ? 'W' : j + 1}</span>
       <label class="num"><input type="number" inputmode="decimal" step="0.5" value="${esc(s.kg)}" onchange="setVal(${i},${j},'kg',this.value)" aria-label="kg, set ${j + 1}"><small>kg</small></label>
       <label class="num"><input type="number" inputmode="numeric" value="${esc(s.reps)}" onchange="setVal(${i},${j},'reps',this.value)" aria-label="Reps, set ${j + 1}"><small>reps</small></label>
@@ -424,7 +424,7 @@ function trainingProgress() {
   ${ex ? `<div class="card"><h2>Exercise progress</h2><select onchange="progEx=this.value;render()">${exs.map(e => `<option ${e === ex ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select>
     ${sessions.length > 1 ? `<svg viewBox="0 0 300 100" style="width:100%" role="img" aria-label="Heaviest set per session for ${esc(ex)}"><polyline fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linejoin="round" points="${sessions.map(([, kg], i) => `${10 + i / (sessions.length - 1) * 280},${90 - (kg - lo) / Math.max(1, top - lo) * 75}`).join(' ')}"/>${sessions.map(([d, kg], i) => `<circle cx="${10 + i / (sessions.length - 1) * 280}" cy="${90 - (kg - lo) / Math.max(1, top - lo) * 75}" r="3.5" fill="var(--acc)"><title>${ukDate(d)}: ${kg} kg</title></circle>`).join('')}</svg>
       <p class="mute">${sessions[0][1]} kg → ${sessions.at(-1)[1]} kg over ${sessions.length} sessions</p>` : '<p class="mute">Log this exercise in two sessions to see a trend.</p>'}</div>` : ''}
-  <div class="card"><h2>Best lifts</h2><ul>${exs.map(e => { const r = S.records[e]; return `<li><span>${esc(e)}<br><span class="mute">est. 1RM ${est1RM(r)} kg</span></span><span>${r.kg} kg × ${r.reps}<br><span class="mute">${ukDate(r.date)}</span></span></li>`; }).join('') || '<li class="mute">None yet</li>'}</ul></div>`;
+  <div class="card"><h2>Best lifts</h2><ul>${exs.map(e => { const r = S.records[e]; return `<li><span>${esc(e)}<br><span class="mute">est. 1RM ${est1RM(r)} kg</span></span><span>${esc(r.kg)} kg × ${esc(r.reps)}<br><span class="mute">${ukDate(r.date)}</span></span></li>`; }).join('') || '<li class="mute">None yet</li>'}</ul></div>`;
 }
 
 // ---------- training blocks: stick with one plan for 4–6 weeks ----------
@@ -447,7 +447,7 @@ let swapFor = null, swapDislike = true;
 function swapPicker(ex, rid, k) {
   const alts = alternatives(ex);
   return `<li class="swap" style="display:block"><div class="mute">Swap ${esc(ex)} for (same movement first):</div>
-    ${alts.length ? `<div class="pills mt">${alts.slice(0, 6).map(a => `<button class="pill" onclick="swapEx(${rid},${k},${esc(js(a))})">${esc(a)}</button>`).join('')}</div>` : '<p class="mute">No other option with your available equipment. Mark more equipment as available in Gyms.</p>'}
+    ${alts.length ? `<div class="pills mt">${alts.slice(0, 6).map(a => `<button class="pill" onclick="swapEx(${rid},${k},${js(a)})">${esc(a)}</button>`).join('')}</div>` : '<p class="mute">No other option with your available equipment. Mark more equipment as available in Gyms.</p>'}
     <label class="chk"><input type="checkbox" ${swapDislike ? 'checked' : ''} onchange="swapDislike=this.checked"> Only use ${esc(ex)} in future plans if nothing else fits</label></li>`;
 }
 function swapEx(rid, k, name) {
