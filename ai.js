@@ -1,16 +1,20 @@
 // ===== Claude: "Ask coach" chat and photo meal estimates =====
 // The API key lives in its own localStorage entry on this device only. It is never in backups or exports.
 // Every send asks first. Private health is left out unless the user ticks it for that message.
-const AI_KEY = 'fitness-ai-key', AI_MODEL = 'claude-opus-5-5';
+const AI_KEY = 'fitness-ai-key';
+// Two models, picked per job:
+//   coach  = Claude Sonnet 5.5: strong reasoning and vision for coaching chat and weekly-review advice, half Opus's price.
+//   vision = Claude Haiku 5.5: fast and very cheap for meal photos and food lookups (fractions of a penny each).
+const AI = {coach: {model: 'claude-sonnet-5-5', effort: 'medium', fallback: true}, vision: {model: 'claude-haiku-5-5', effort: 'low', fallback: false}};
 const aiKey = () => { try { return localStorage.getItem(AI_KEY) || ''; } catch { return ''; } };
 function setAiKey(v) { try { v.trim() ? localStorage.setItem(AI_KEY, v.trim()) : localStorage.removeItem(AI_KEY); } catch {} render(); }
 
 // Raw fetch: this app has no build step to bundle the SDK.
-async function claude(system, content, maxTokens = 4000) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {method: 'POST', headers: {
-    'content-type': 'application/json', 'x-api-key': aiKey(), 'anthropic-version': '2026-10-21',
-    'anthropic-dangerous-direct-browser-access': 'true', 'anthropic-beta': 'server-side-fallback-2026-07-01'},
-    body: JSON.stringify({model: AI_MODEL, max_tokens: maxTokens, fallbacks: 'default', system, messages: content})});
+async function claude(system, content, maxTokens = 4000, job = 'coach') {
+  const m = AI[job], headers = {'content-type': 'application/json', 'x-api-key': aiKey(), 'anthropic-version': '2026-10-21', 'anthropic-dangerous-direct-browser-access': 'true'};
+  const body = {model: m.model, max_tokens: maxTokens, output_config: {effort: m.effort}, system, messages: content};
+  if (m.fallback) { headers['anthropic-beta'] = 'server-side-fallback-2026-07-01'; body.fallbacks = 'default'; } // Sonnet: retry a refused request on a fallback model
+  const res = await fetch('https://api.anthropic.com/v1/messages', {method: 'POST', headers, body: JSON.stringify(body)});
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(res.status === 401 ? 'The API key was rejected. Check it in Settings.' : res.status === 429 ? 'Too many requests. Try again in a minute.' : j.error?.message || `Error ${res.status}`);
   if (j.stop_reason === 'refusal') throw new Error("Claude declined that request. Try rephrasing it.");
@@ -69,7 +73,7 @@ async function estimatePhoto() {
   try {
     const content = [...d.photos.map(ph => ({type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: ph.split(',')[1]}})),
       {type: 'text', text: CLAUDE_PROMPT + (d.text ? `\nThe user says: ${d.text}` : '') + '\nWork out portion weights yourself from visual cues (standard dinner plate about 26 cm, cutlery, cups, hands, packaging). Never ask the user to weigh. Include visible oil, butter, sauces and drinks. Use typical UK recipes, including Caribbean, Asian and takeaway dishes. If unsure of an item, still give your best guess.'}];
-    const items = parsePasted(await claude('You estimate food portions and nutrition from photos for a UK fitness app. Reply only in the requested line format.', [{role: 'user', content}], 2000));
+    const items = parsePasted(await claude('You estimate food portions and nutrition from photos for a UK fitness app. Reply only in the requested line format.', [{role: 'user', content}], 2000, 'vision'));
     if (!items.length) throw new Error("Couldn't read an estimate from the reply. Describe the meal instead.");
     d.items.push(...items); d.askedOil = true; // Claude already includes visible oil and sauces
   } catch (e) { alert(e.message); }
@@ -85,7 +89,7 @@ async function lookupUnknown() {
   try {
     const reply = await claude('You give typical UK nutrition values for foods, restaurant dishes and takeaways (e.g. Nandos, Wagamama, Caribbean, Italian, Japanese, fast food). Reply only in the requested line format.',
       [{role: 'user', content: `For each food, give values for the stated grams, one line each, same order, no other text: name | grams | kcal | protein g | carbs g | fat g | fibre g
-${unk.map(x => `${x.name} | ${x.grams}`).join('\n')}`}], 1500);
+${unk.map(x => `${x.name} | ${x.grams}`).join('\n')}`}], 1500, 'vision');
     const got = parsePasted(reply);
     unk.forEach((x, i) => { const g = got[i]; if (!g) return;
       Object.assign(x, {per100: g.per100, src: 'paste', fam: x.fam || ''});
@@ -93,4 +97,16 @@ ${unk.map(x => `${x.name} | ${x.grams}`).join('\n')}`}], 1500);
     if (!got.length) throw new Error("Couldn't read values from the reply. Add packet values instead.");
   } catch (e) { alert(e.message); }
   estBusy = false; save(); render();
+}
+
+// ---------- weekly review: ask the coach to turn the numbers into a plan (health left out unless ticked) ----------
+let revAdvice = {}, revBusy = false;
+async function reviewAdvice(id) {
+  const r = S.reviews.find(x => x.id == id); if (!r || revBusy) return;
+  if (!aiKey()) return go('Settings');
+  if (!confirm(`Send this weekly review${revHealth ? ', including your private health notes,' : ''} to Anthropic's Claude for coaching advice?`)) return;
+  revBusy = true; render();
+  try { revAdvice[id] = await claude(COACH_RULES, [{role: 'user', content: `Here is my weekly review.\n\n${reviewText(r, revHealth)}\n\nMy goal: ${P().goal || 'not set'}. Give me: 1) one sentence on how the week went, 2) the single most important thing to change next week and exactly how to do it with minimum effort, 3) one thing to keep doing. Keep it under 120 words.`}], 3000); }
+  catch (e) { alert(e.message); }
+  revBusy = false; render();
 }
