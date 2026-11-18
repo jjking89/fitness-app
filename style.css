@@ -157,3 +157,10 @@ nav button{min-height:58px}
 nav button.on{background:color-mix(in srgb,var(--acc) 14%,transparent);border-radius:22px}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.card,nav,#timer{background:var(--card)}}
 @media (prefers-reduced-transparency:reduce){.card,nav,#timer,button.sec{background:var(--card);backdrop-filter:none;-webkit-backdrop-filter:none}}
+/* phone polish */
+input,select,textarea{font-size:16px}
+html,body{overscroll-behavior-x:none}
+body{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
+#timer{bottom:calc(80px + env(safe-area-inset-bottom))}
+.wbar{bottom:calc(80px + env(safe-area-inset-bottom))}body:has(.wbar) #timer{bottom:calc(150px + env(safe-area-inset-bottom))}
+.num small{flex:none;white-space:nowrap}.num input{min-width:0;width:100%}
