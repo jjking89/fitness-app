@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#111">
+<title>Fitness</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app"></main>
+<div id="timer"></div>
+<nav id="nav"></nav>
+<input type="file" id="photoIn" accept="image/*" hidden>
+<input type="file" id="gymPhotoIn" accept="image/*" hidden>
+<input type="file" id="imp" accept=".json,application/json" hidden>
+<!-- Private single-user tracker. All data lives in this browser's localStorage on this device.
+     No personal details or health information are written in these source files. -->
+<script src="core.js"></script>
+<script src="training.js"></script>
+<script src="food.js"></script>
+<script src="health.js"></script>
+<script src="coach.js"></script>
+<script src="ai.js"></script>
+<script>boot();</script>
+</body>
+</html>
