@@ -5,6 +5,9 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const QUESTIONS = [
   ['height', 'What is your current height in cm?', 'number'],
   ['weight', 'What is your current weight in kg?', 'number'],
+  ['age', 'How old are you?', 'number'],
+  ['sex', 'Sex (for the calorie formula)', 'select', ['Male', 'Female', 'Prefer not to say']],
+  ['activity', 'Outside the gym, how active is your day?', 'select', ['Mostly sitting (desk job, driving)', 'On my feet some of the day', 'On my feet most of the day (manual work)']],
   ['goal', 'What is your main fitness goal?', 'select', ['Lose fat', 'Build muscle', 'Get stronger', 'Recomposition', 'General fitness']],
   ['experience', 'How much strength-training experience do you have?', 'select', ['New to it', 'Under 1 year', '1–3 years', '3+ years']],
   ['days', 'Which days can you train?', 'days'],

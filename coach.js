@@ -19,7 +19,7 @@ function calcTargets() {
   const prev = w.filter(x => { const d = daysBetween(x.date, last.date); return d >= 5 && d <= 14; });
   const rate = prev.length ? (kg - avgKg(prev)) / Math.max(5, daysBetween(prev.at(-1).date, last.date)) * 7 : null; // kg per week
   const intake = loggedIntake(last.date), old = S.coach.tdee;
-  let tdee = kg * 30, how = 'a starting estimate from your weight (30 kcal per kg)';
+  const st = startTdee(kg); let tdee = st.tdee, how = st.how;
   if (rate != null && intake.n >= 5) {
     const measured = intake.avg - rate * KCAL_PER_KG / 7;
     tdee = old ? old * 0.7 + measured * 0.3 : measured; // smooth: one odd week can't swing targets
@@ -31,9 +31,8 @@ function calcTargets() {
   let kcal = tdee + goalAdj, cur = +P().kcal;
   if (cur) kcal = Math.max(cur - MAX_STEP, Math.min(cur + MAX_STEP, kcal));
   kcal = r10(Math.max(kcalFloor(), kcal));
-  const protein = Math.round(Math.min(200, kg * (P().goal === 'General fitness' ? 1.6 : 1.8)));
-  const fat = Math.round(Math.max(kg * 0.6, kcal * 0.25 / 9)), carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
-  return {date: last.date, kg: +kg.toFixed(1), rate, tdee: Math.round(tdee), how, t: {kcal, protein, carbs, fat, fibre: Math.max(30, Math.round(kcal / 1000 * 14))}};
+  const m = macrosFor(kcal, kg, wkRate);
+  return {date: last.date, kg: +kg.toFixed(1), rate, tdee: Math.round(tdee), how, why: m.why, t: {kcal, ...m.t}};
 }
 const TKEYS = ['kcal', 'protein', 'carbs', 'fat', 'fibre'];
 // Runs on every render; acts at most once per new weigh-in, 6+ days after the last update.
@@ -120,6 +119,7 @@ screens.Settings = () => {
     ${tog('Update targets automatically after each weekly weigh-in', 'autoTargets')}
     <label>Weigh-in day</label><select onchange="setS('weighDay',this.value)">${DAYS.map(d => `<option ${d === (S.settings.weighDay || 'Mon') ? 'selected' : ''}>${d}</option>`).join('')}</select>
     ${[['kcal', 'Calories', 'kcal', 10], ['protein', 'Protein', 'g', 1], ['carbs', 'Carbs', 'g', 1], ['fat', 'Fat', 'g', 1], ['fibre', 'Fibre', 'g', 1], ['waterGoal', 'Water', 'ml', 50], ['stepGoal', 'Steps', 'steps', 500]].map(([k, l, u, st]) => num(l, P()[k], `setP('${k}',this.value)`, st, u)).join('')}
+    ${(() => { const r = calcTargets(); return r ? `<details class="more"><summary>How these were worked out</summary><p class="mute">Daily burn about ${gb(r.tdee)} kcal, based on ${esc(r.how)}. Your pace takes off about ${gb(Math.max(0, Math.round(r.tdee - r.t.kcal)))} kcal a day, never below ${gb(kcalFloor())} kcal. Exercise calories aren't added back.</p><ul>${r.why.map(x => `<li class="mute" style="display:block">${esc(x)}</li>`).join('')}</ul></details>` : ''; })()}
     <p class="mute">You can change any target by hand. The next weekly update starts from what you set.</p>
     ${S.coach.history.length && !S.coach.history.at(-1).undone ? `<button class="sec mt" onclick="if(confirm('Go back to the targets before the last automatic update?'))undoTargets()">Undo last automatic update (${ukDate(S.coach.history.at(-1).date)})</button>` : ''}</div>
   <div class="card"><h2>Workouts</h2>
@@ -209,4 +209,32 @@ function retarget() {
   const old = +P().kcal; delete S.profile.kcal; const r2 = calcTargets() || r; // a deliberate change isn't limited to 150 kcal
   S.coach.history.push({id: uid(), date: today(), from: {...pick(P(), TKEYS), kcal: old || ''}, to: r2.t, how: r2.how, kg: r2.kg, rate: r2.rate, seen: false});
   S.coach.tdee = r2.tdee; Object.assign(S.profile, r2.t); save(); render();
+}
+
+// ---------- the nutrition rules (evidence-based defaults; a care team's figures always win) ----------
+// Starting daily burn: Mifflin-St Jeor resting rate x everyday activity, plus a little for gym days. Exercise is never "eaten back".
+// After a few weeks the engine switches to your real burn, measured from logged food and weigh-ins.
+const ACTIVITY = {'Mostly sitting': 1.3, 'On my feet some': 1.45, 'On my feet most': 1.6};
+function startTdee(kg) {
+  const T = P(), h = +T.height, age = +T.age, act = Object.entries(ACTIVITY).find(([k]) => String(T.activity || '').startsWith(k))?.[1] || 1.35;
+  const days = Array.isArray(T.days) ? T.days.length : 2, gym = Math.min(0.15, days * 0.03); // ~3% per weekly session
+  if (h > 0 && age > 0) {
+    const bmr = 10 * kg + 6.25 * h - 5 * age + (T.sex === 'Female' ? -161 : T.sex === 'Male' ? 5 : -78);
+    return {tdee: bmr * (act + gym), bmr, how: `your resting burn (${gb(Math.round(bmr))} kcal, from height, weight, age${T.sex === 'Male' || T.sex === 'Female' ? ' and sex' : ''}) x your daily activity and ${days} gym day${days === 1 ? '' : 's'} a week`};
+  }
+  return {tdee: kg * 30, how: 'a rough estimate from your weight (add height and age in Profile for a better one)'};
+}
+// Macros for a fat-loss phase: protein high to keep muscle, fat high enough for hormones, carbs fuel training, fibre for fullness.
+function macrosFor(kcal, kg, wkRate) {
+  const g = +P().goalWeight, losing = wkRate < 0, ref = losing && g ? Math.min(kg, g + (kg - g) / 2) : kg; // protein from a reference weight: higher body fat needs less per kg
+  let protein = Math.round(Math.min(230, Math.max(120, ref * (losing ? 2.0 : P().goal === 'General fitness' ? 1.6 : 1.8))));
+  let fat = Math.round(Math.max(ref * 0.7, kcal * 0.25 / 9));
+  let carbs = Math.round((kcal - protein * 4 - fat * 9) / 4);
+  if (carbs < 100) { fat = Math.max(Math.round(ref * 0.6), fat - Math.ceil((100 - carbs) * 4 / 9)); carbs = Math.max(50, Math.round((kcal - protein * 4 - fat * 9) / 4)); } // keep some carbs for training
+  const fibre = Math.max(30, Math.round(kcal / 1000 * 14));
+  return {t: {protein, carbs, fat, fibre}, why: [
+    `Protein ${protein} g: about ${(protein / ref).toFixed(1)} g per kg of a ${Math.round(ref)} kg reference weight, to keep muscle while losing fat and keep you full.`,
+    `Fat ${fat} g: at least ${Math.round(ref * 0.6)}–${Math.round(ref * 0.7)} g a day for hormones and vitamin absorption.`,
+    `Carbs ${carbs} g: what's left, to fuel your gym sessions and daily energy.`,
+    `Fibre ${fibre} g: UK guidance is at least 30 g; about 14 g per 1,000 kcal helps fullness and digestion.`]};
 }
