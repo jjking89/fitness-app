@@ -81,10 +81,10 @@ async function estimatePhoto() {
 }
 
 // ---------- unknown foods: ask Claude once, then remember the values on this device ----------
-async function lookupUnknown() {
+async function lookupUnknown(auto = false) {
   const d = S.draft, unk = d?.items.filter(x => x.src === 'unknown'); if (!unk?.length || estBusy) return;
   if (!aiKey()) return go('Settings');
-  if (!confirm(`Send ${unk.map(x => '"' + x.name + '"').join(', ')} (names and grams only) to Anthropic's Claude for typical UK values? They'll be remembered for next time.`)) return;
+  if (!(auto && S.settings.photoConsent) && !confirm(`Send ${unk.map(x => '"' + x.name + '"').join(', ')} (names and grams only) to Anthropic's Claude for typical UK values? They'll be remembered for next time.`)) return;
   estBusy = true; render();
   try {
     const reply = await claude('You give typical UK nutrition values for foods, restaurant dishes and takeaways (e.g. Nandos, Wagamama, Caribbean, Italian, Japanese, fast food). Reply only in the requested line format.',

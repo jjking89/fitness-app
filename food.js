@@ -142,7 +142,9 @@ photoIn.onchange = async () => {
 };
 function applyMealText() {
   const ta = document.getElementById('mealText'), t = ta.value.trim(); if (!t) return ta.focus();
+  if (S.draft.photos.length && !S.draft.items.length && aiKey()) { S.draft.text = t; save(); return estimatePhoto(); }
   const before = S.draft.items.length; applyText(S.draft, t);
+  if (S.draft.items.some(x => x.src === 'unknown') && aiKey() && S.settings.photoAuto !== false) { S.draft.text = ''; save(); render(); return lookupUnknown(true); } // fill unknown foods straight away
   if (!S.draft.items.length && !before) return alert("I couldn't find any foods in that. Try e.g. \"two eggs and toast\".");
   S.draft.text = ''; save(); render();
 }
@@ -198,6 +200,8 @@ let saving = false;
 function confirmMeal() {
   const d = S.draft; if (!d || saving) return;
   if (!d.items.length) return alert('Add at least one food first.');
+  const unk = d.items.filter(x => x.src === 'unknown' || !x.per100);
+  if (unk.length) return aiKey() ? lookupUnknown() : alert(`No calories for ${unk.map(x => x.name).join(', ')} yet. Add packet values, rename it, or remove it.`);
   if (S.meals.some(m => m.draftId === d.id)) { S.draft = null; save(); return go('Food'); } // retry after a successful save
   const sigv = d.items.map(x => x.name + ':' + x.grams).join('|');
   const recent = S.meals.find(m => m.itemSig === sigv && m.date === today() && Date.now() - (m.savedAt || 0) < 15 * 60e3);

@@ -85,7 +85,7 @@ function copyYesterday() {
   if (!confirm(`Copy ${y.length} meal(s) from yesterday to today?`)) return;
   y.forEach(m => S.meals.push({id: uid(), date: today(), ...pick(m, MEAL_KEYS), savedAt: m.savedAt ? Date.now() - (Date.now() - m.savedAt) % 864e5 : Date.now()})); save(); render();
 }
-function recentMeals(n = 5) { const seen = new Set(); return [...S.meals].reverse().filter(m => !seen.has(m.name) && seen.add(m.name)).slice(0, n); }
+function recentMeals(n = 5) { const seen = new Set(); return [...S.meals].reverse().filter(m => +m.kcal > 0 && !seen.has(m.name) && seen.add(m.name)).slice(0, n); }
 const quickFood = () => { const r = recentMeals(); return `<div class="card"><div class="sec-h"><h2>Quick add</h2><button class="link" style="width:auto" onclick="copyYesterday()">Copy yesterday</button></div>
   ${r.length ? `<ul>${r.map(m => `<li><span>${esc(m.name)}<br><span class="mute">${gb(m.kcal)} kcal</span></span><button onclick="repeatMeal(${js(pick(m, MEAL_KEYS))})" aria-label="Add ${esc(m.name)} again">+ Add</button></li>`).join('')}</ul>` : '<p class="mute">Meals you log show here for one-tap adding.</p>'}</div>`; };
 // Sunday 9am onwards: build the weekly review automatically, once.
