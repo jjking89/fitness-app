@@ -386,7 +386,7 @@ function logMeal(slot) { mealBack = cur === 'Food' ? 'Food' : 'Today'; S.draft |
 let mealBack = 'Food', mealTab = 'History', mealQ = '', quickAdd = false, srchT;
 const slotNow = () => slotOf({savedAt: Date.now()});
 const bankKcal = f => Math.round(f[3][0] * f[5] / 100);
-const foodToItem = f => ({id: uid(), name: f[1], fam: f[2], per100: f[3], grams: f[5], unitG: f[4], src: 'est', vary: !!f[6], qtyGiven: true, asked: true});
+let foodToItem = f => ({id: uid(), name: f[1], fam: f[2], per100: f[3], grams: f[5], unitG: f[4], src: 'est', vary: !!f[6], qtyGiven: true, asked: true});
 // a food-bank / learned food as a ready-made meal entry at its default grams
 const foodAsMeal = (name, per100, g) => { const v = i => (per100[i] || 0) * g / 100; return {name, portion: `${g} g ${name}`, kcal: Math.round(v(0)), protein: n1(v(1)), carbs: n1(v(2)), fat: n1(v(3)), fibre: n1(v(4)), est: true}; };
 function addToSlot(m) { // instant log into the open meal, then back where the user came from

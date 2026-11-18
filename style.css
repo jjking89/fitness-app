@@ -239,3 +239,4 @@ button.link.cdone{display:block;margin:var(--s2) auto 0;width:auto}
 .mgrp{padding:0 var(--s4)}.mgrp li{padding:0;min-height:0}.mgrp li:last-child{border-bottom:0}
 button.mrow{width:100%;display:flex;justify-content:space-between;align-items:center;background:none;color:var(--ink);font-weight:500;padding:12px 0;border-radius:0;min-height:50px;box-shadow:none!important}
 button.mrow span{color:var(--mute);font-size:22px}
+.bld{background:var(--acc-soft);border-radius:var(--r-sm);padding-left:8px;padding-right:4px}
