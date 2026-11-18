@@ -357,6 +357,8 @@ screens.Training = () => {
   const tr = todaysRoutine();
   return `<h1 class="xl">Training</h1>${seg([['Routines', "go('Training')"], ['Planner', "go('Planner')"], ['Gyms', "go('Gyms')"]], 'Routines')}<p class="mute">${P().session} min workouts, plus rests${Array.isArray(P().days) ? ' · ' + P().days.join(', ') : ''}</p>
   ${latestGuidance() || has(P().clinician) ? guidanceBlock() : ''}
+  <div class="gymbar"><span>📍</span><select onchange="S.gymId=+this.value;save();render()" aria-label="Gym">${S.gyms.map(x => `<option value="${x.id}" ${x.id == gym().id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><button class="link" style="width:auto" onclick="go('Gyms')">Edit</button></div>
+  ${S.routines.some(r => r.generated && r.items.some(i => !equipOk(gym(), i.ex))) ? `<div class="note">Some plan exercises need equipment ${esc(gym().name)} doesn't have. <button class="mt" onclick="adaptPlanToGym()">Swap them for this gym</button></div>` : ''}
   ${planCards(tr)}
   <button class="link mt" onclick="progTab='Training';go('Progress')">See progress →</button>`;
 };
@@ -452,4 +454,12 @@ function swapEx(rid, k, name) {
   const r = S.routines.find(x => x.id == rid), it = r?.items[k]; if (!it) return;
   if (swapDislike) S.prefs[it.ex] = 'dislike';
   Object.assign(it, {alt: it.ex, ex: name}); swapFor = null; save(); render();
+}
+
+// Switching gyms: replace exercises this gym can't do with the closest alternative it can.
+function adaptPlanToGym() {
+  const g = gym(), changes = [];
+  for (const r of S.routines.filter(r => r.generated)) r.items.forEach(i => { if (!equipOk(g, i.ex)) { const a = alternatives(i.ex).find(x => !r.items.some(o => o.ex === x)); if (a) { changes.push(`${i.ex} → ${a}`); Object.assign(i, {alt: i.ex, ex: a}); } } });
+  if (!changes.length) return alert(`Nothing to swap: no alternatives available at ${g.name}. Check its equipment in Gyms.`);
+  save(); render(); alert('Swapped for ' + g.name + ':\n' + changes.join('\n'));
 }

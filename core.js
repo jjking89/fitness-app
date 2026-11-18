@@ -9,11 +9,12 @@ const QUESTIONS = [
   ['experience', 'How much strength-training experience do you have?', 'select', ['New to it', 'Under 1 year', '1–3 years', '3+ years']],
   ['days', 'Which days can you train?', 'days'],
   ['branch', 'Which Anytime Fitness branch do you attend? (town and street)', 'text'],
-  ['equipLike', 'Any equipment, machines or exercises you like?', 'textarea'],
-  ['equipAvoid', 'Any equipment, machines or movements you want to avoid?', 'textarea'],
-  ['foodLike', 'Foods you like, or your diet style?', 'textarea'],
-  ['foodAvoid', 'Foods you avoid or dislike?', 'textarea'],
-  ['allergies', 'Any food allergies or intolerances?', 'textarea'],
+  ['gymEquip', 'Tick the equipment your gym has', 'gymequip'],
+  ['equipLike', 'Tap any equipment you like using', 'chips'],
+  ['equipAvoid', 'Tap any equipment you want to avoid', 'chips'],
+  ['foodLike', 'Tap foods you like', 'chips', 'food'],
+  ['foodAvoid', 'Tap foods you avoid or dislike', 'chips', 'food'],
+  ['allergies', 'Any food allergies or intolerances?', 'chips', 'allergy'],
   ['budget', 'Rough weekly food budget? (£)', 'number'],
   ['prepTime', 'Time you can spend preparing a typical meal? (minutes)', 'number'],
   ['kcal', 'Do you already use a daily calorie target? (kcal)', 'number'],
@@ -22,6 +23,12 @@ const QUESTIONS = [
   ['clinician', 'Any current guidance from a doctor, physio or other clinician that affects training? (You can add dated notes in Health later.)', 'textarea'],
 ];
 
+const CHIP_SETS = {
+  food: ['Chicken', 'Beef', 'Lamb', 'Goat', 'Pork', 'Fish', 'Salmon', 'Tuna', 'Prawns', 'Eggs', 'Rice', 'Pasta', 'Potatoes', 'Bread', 'Oats', 'Noodles',
+    'Beans', 'Lentils', 'Chickpeas', 'Tofu', 'Broccoli', 'Spinach', 'Peppers', 'Mushrooms', 'Sweetcorn', 'Peas', 'Salad', 'Plantain', 'Yam', 'Avocado',
+    'Banana', 'Berries', 'Apples', 'Greek yoghurt', 'Cheese', 'Milk', 'Peanut butter', 'Nuts', 'Spicy food', 'Caribbean', 'Indian', 'Chinese', 'Japanese', 'Italian', 'Vegetarian'],
+  allergy: ['Peanuts', 'Tree nuts', 'Milk / lactose', 'Eggs', 'Gluten / wheat', 'Fish', 'Shellfish', 'Soya', 'Sesame', 'Celery', 'Mustard', 'Sulphites'],
+};
 const uid = () => Date.now() + Math.random();
 const blank = () => ({
   v: VERSION, profile: {session: 45}, iv: 0,
@@ -100,6 +107,9 @@ function ivInput(q) {
   const [k, , t, opts] = q, v = P()[k], val = has(v) ? v : '';
   if (t === 'select') return `<select id="ivv"><option value="">Choose…</option>${opts.map(o => `<option ${val === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
   if (t === 'days') return `<div class="grid3" id="ivv">${DAYS.map(d => `<label class="chk"><input type="checkbox" value="${d}" ${Array.isArray(val) && val.includes(d) ? 'checked' : ''}> ${d}</label>`).join('')}</div>`;
+  if (t === 'gymequip') { const g = S.gyms[0]; return `<p class="mute">${esc(g.name)}. Tap to tick. Change it any time in Training → Gyms.</p><div class="chips" id="ivv">${g.equipment.map(e => `<button type="button" class="chip ${e.status === 'available' ? 'on' : ''}" onclick="this.classList.toggle('on')">${esc(e.name)}</button>`).join('')}</div>
+    <button type="button" class="link" onclick="document.querySelectorAll('#ivv .chip').forEach(c=>c.classList.add('on'))">Tick all</button>`; }
+  if (t === 'chips') { const on = terms(val), list = CHIP_SETS[opts] || EQUIP, other = terms(val).filter(x => !list.some(e => e.toLowerCase() === x)).join(', '); return `<div class="chips" id="ivv">${list.map(e => `<button type="button" class="chip ${on.includes(e.toLowerCase()) ? 'on' : ''}" onclick="this.classList.toggle('on')">${esc(e)}</button>`).join('')}</div><input id="ivo" placeholder="Anything else? (optional)" value="${esc(other)}">`; }
   if (t === 'textarea') return `<textarea id="ivv" rows="3">${esc(val)}</textarea>`;
   return `<input id="ivv" type="${t}" ${t === 'number' ? 'inputmode="decimal" step="any"' : ''} value="${esc(val)}">`;
 }
@@ -107,7 +117,9 @@ function ivAnswer(mode) {
   const i = ivSingle ? QUESTIONS.findIndex(q => q[0] === ivSingle) : S.iv, [k, , t] = QUESTIONS[i];
   let v = mode;
   if (mode === 'save') {
-    v = t === 'days' ? [...document.querySelectorAll('#ivv input:checked')].map(c => c.value) : document.getElementById('ivv').value.trim();
+    const chips = () => [...document.querySelectorAll('#ivv .chip.on')].map(c => c.textContent);
+    if (t === 'gymequip') { const on = chips(), g = S.gyms[0]; g.equipment.forEach(e => e.status = on.includes(e.name) ? 'available' : 'unavailable'); g.confirmedAt = today(); v = on.length ? `${on.length} items` : ''; }
+    else v = t === 'days' ? [...document.querySelectorAll('#ivv input:checked')].map(c => c.value) : t === 'chips' ? [...chips(), document.getElementById('ivo')?.value.trim()].filter(Boolean).join(', ') : document.getElementById('ivv').value.trim();
     if (t === 'number' && v !== '' && !(+v > 0)) return alert('Enter a positive number, or tap Skip.');
     if (v === '' || (Array.isArray(v) && !v.length)) v = 'skip';
   }

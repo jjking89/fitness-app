@@ -182,3 +182,10 @@ details.more>summary{cursor:pointer;font-weight:600;color:var(--acc);list-style:
 details.more>summary::-webkit-details-marker{display:none}
 details.more>summary::before{content:'＋ '}
 details.more[open]>summary::before{content:'－ '}
+
+/* tap-to-tick chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:var(--s2) 0}
+.chip{width:auto;min-height:40px;padding:8px 14px;border-radius:999px;background:var(--glass);color:var(--ink);border:1px solid var(--glass-b);font-weight:500;font-size:15px}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.gymbar{display:flex;align-items:center;gap:var(--s2);margin:0 0 var(--s3)}
+.gymbar select{flex:1;min-height:40px;border-radius:999px;padding:6px 14px}
