@@ -34,7 +34,7 @@ const blank = () => ({
   v: VERSION, profile: {session: 45}, iv: 0,
   weights: [], body: [], meals: [], favs: [], water: [], steps: [], sleep: [], workouts: [], routines: [], reviews: [],
   gyms: [], gymId: null, prefs: {}, rest: {}, week: {days: {}}, active: null, timer: null, records: {},
-  mealPlan: {slots: {}, ticks: {}}, pending: null, coach: {history: [], tdee: null}, foods: [],
+  mealPlan: {slots: {}, ticks: {}}, pending: null, coach: {history: [], tdee: null}, foods: [], barcodes: {},
   health: {notes: [], appts: [], symptoms: [], doses: [], med: {enabled: false, name: '', dose: '', start: ''}, constraints: {avoid: '', hr: '', intensity: ''}},
   settings: {autoRest: true, sound: true, vibrate: true, reminder: false, speechConsent: false, autoTargets: null, weighDay: 'Mon'},
 });

@@ -231,14 +231,14 @@ screens.Meal = () => {
     <textarea id="pasteText" rows="3" class="mt" placeholder="Chicken thigh | 150 | 314 | 39 | 0 | 16 | 0"></textarea><button class="sec mt" onclick="applyPaste()">Add pasted items</button></details>`;
   // Step 1: choose how to log
   if (!d.items.length && !d.photos.length && !d.mode) return `${head}
-    <div class="grid3 tiles3"><button onclick="photoIn.click()">📷<br>Photo</button><button onclick="S.draft.mode='speak';render();speak()">🎤<br>Speak</button><button onclick="S.draft.mode='type';render();document.getElementById('mealText').focus()">⌨️<br>Type</button></div>
+    <div class="grid2 tiles3"><button onclick="photoIn.click()">📷<br>Photo</button><button onclick="scanBarcode()">▥<br>Scan barcode</button><button onclick="S.draft.mode='speak';render();speak()">🎤<br>Speak</button><button onclick="S.draft.mode='type';render();document.getElementById('mealText').focus()">⌨️<br>Type</button></div>
     ${rec.length ? `<h3>Recent</h3><div class="card"><ul>${rec.map(m => `<li><span>${esc(m.name)}<br><span class="mute">${gb(m.kcal)} kcal</span></span><button onclick="S.draft=null;repeatMeal({...${esc(js(pick(m, MEAL_KEYS)))},slot:${esc(js(d.slot || slotOf(m)))}});go('Today')">+ Add</button></li>`).join('')}</ul></div>` : ''}${more}`;
   // Step 2: describe it (typed, spoken or photo)
   if (!d.items.length) return `${head}
     ${d.photos.map((ph, i) => `<img src="${ph}" alt="Meal photo ${i + 1}" class="mphoto">`).join('')}
     ${d.photos.length && aiKey() ? `<button ${estBusy ? 'disabled' : ''} onclick="estimatePhoto()">${estBusy ? 'Estimating…' : '✨ Estimate with Claude'}</button><p class="mute center">or describe it:</p>` : ''}
     ${input(d.mode === 'speak' ? 'Say what you ate' : 'What did you eat?')}
-    <div class="grid2"><button class="sec" onclick="S.draft.mode='speak';render();speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Photo</button></div>${more}`;
+    <div class="grid3"><button class="sec" onclick="S.draft.mode='speak';render();speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Photo</button><button class="sec" onclick="scanBarcode()">▥ Scan</button></div>${more}`;
   // Step 3: check and save
   return `${head}
   ${q.length ? `<div class="card"><h2>Quick questions</h2>${q.join('')}</div>` : ''}
@@ -253,7 +253,7 @@ screens.Meal = () => {
     ${unknown ? `<p class="mute">${unknown} item(s) have no values yet: rename them or add packet values.</p>${aiKey() ? `<button class="sec" ${estBusy ? 'disabled' : ''} onclick="lookupUnknown()">${estBusy ? 'Looking up…' : '✨ Look up with Claude'}</button>` : ''}` : ''}
     <button class="mt" onclick="confirmMeal()">Save ${d.slot ? d.slot.toLowerCase() : 'meal'}</button></div>
   <details class="card more"><summary>Add more or correct</summary>${input('e.g. “that was chicken thigh, I only ate half the rice”').replace(/^<div class="card">|<\/div>$/g, '')}
-    <div class="grid2 mt"><button class="sec" onclick="speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Photo</button></div>
+    <div class="grid3 mt"><button class="sec" onclick="speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Photo</button><button class="sec" onclick="scanBarcode()">▥ Scan</button></div>
     <label for="mealNm">Meal name (optional)</label><input id="mealNm" value="${esc(d.name)}" placeholder="${esc(d.items.map(x => x.name).join(', '))}" onchange="S.draft.name=this.value;save()"></details>
   ${more}`;
 };
