@@ -33,7 +33,7 @@ screens.Today = () => {
   ${!P().done ? `<div class="card"><h2>Set up your profile</h2><p class="mute">${S.iv ? `Question ${S.iv + 1} of ${QUESTIONS.length}` : 'One question at a time. Skip or say not sure to anything.'}</p><button onclick="go('Interview')">${S.iv ? 'Continue' : 'Start'}</button></div>` : ''}
   ${coachCard()}${S.reviews.at(-1)?.auto && S.reviews.at(-1).date === today() ? `<div class="note"><b>Your weekly review is ready.</b> <button class="mt" onclick="revId=S.reviews.at(-1).id;go('Review')">Open weekly review</button></div>` : ''}
   <div class="pills">
-    <button class="pill" onclick="go('Coach')">💬 Ask coach</button><button class="pill" onclick="startWorkout()">${ic(IC.lift)}${S.active ? 'Resume workout' : 'Start workout'}</button></div>
+    <button class="pill" onclick="go('Coach')">💬 Ask coach</button></div>
   ${S.draft ? `<button class="sec mt" onclick="go('Meal')">Continue meal draft (${S.draft.items.length})</button>` : ''}
   <div class="card mt"><div class="cal-h"><b>Calories</b><span class="mute">${kt ? (t.kcal <= kt ? gb(kt - t.kcal) + ' left' : gb(t.kcal - kt) + ' over') : 'no target'}</span></div>
     <div class="cal"><span class="big">${gb(t.kcal)}</span> cal${kt ? ` / ${gb(kt)}` : ''}</div>${kt ? mbar(t.kcal, kt, t.kcal > kt ? 'var(--warn)' : 'var(--acc)') : ''}</div>
