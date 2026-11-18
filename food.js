@@ -138,7 +138,6 @@ photoIn.onchange = async () => {
   const f = photoIn.files[0]; photoIn.value = ''; if (!f) return;
   try { S.draft ||= newDraft(); S.draft.photos.push(await shrinkImage(f)); save(); go('Meal'); }
   catch { return alert('Could not read that image. Try another, or describe the meal instead.'); }
-  if (aiKey() && S.settings.photoAuto !== false) estimatePhoto(); // hands-free: estimate straight away
 };
 function applyMealText() {
   const ta = document.getElementById('mealText'), t = ta.value.trim(); if (!t) return ta.focus();
@@ -231,7 +230,10 @@ screens.Meal = () => {
   // Step 2: describe it (typed, spoken or photo)
   if (!d.items.length) return `${head}
     ${d.photos.map((ph, i) => `<img src="${ph}" alt="Meal photo ${i + 1}" class="mphoto">`).join('')}
-    ${d.photos.length && aiKey() ? `<button ${estBusy ? 'disabled' : ''} onclick="estimatePhoto()">${estBusy ? 'Estimating…' : '✨ Estimate with Claude'}</button><p class="mute center">or describe it:</p>` : ''}
+    ${d.photos.length && aiKey() ? (estBusy ? '<p class="center"><b>Working out your meal…</b></p>' : `<div class="card"><b>Where's it from?</b>
+      <div class="chips">${['Home-cooked', "Nando's", 'Wagamama', 'Caribbean takeaway', 'Chinese takeaway', 'Indian takeaway', 'Fast food'].map(w => `<button class="chip" onclick="S.draft.where=${esc(js(w))};estimatePhoto()">${esc(w)}</button>`).join('')}</div>
+      <form class="row" onsubmit="event.preventDefault();S.draft.where=this.w.value.trim();estimatePhoto()"><input name="w" placeholder="Somewhere else? e.g. Pizza Express"><button style="flex:0 0 auto;width:auto">Go</button></form>
+      <button class="link" onclick="S.draft.where='';estimatePhoto()">Not sure, just estimate</button></div><p class="mute center">or describe it:</p>`) : ''}
     ${input(d.mode === 'speak' ? 'Say what you ate' : 'What did you eat?')}
     <div class="grid3"><button class="sec" onclick="S.draft.mode='speak';render();speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Photo</button><button class="sec" onclick="scanBarcode()">▥ Scan</button></div>${more}`;
   // Step 3: check and save

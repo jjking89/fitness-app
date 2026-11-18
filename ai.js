@@ -4,8 +4,9 @@
 const AI_KEY = 'fitness-ai-key';
 // Two models, picked per job:
 //   coach  = Claude Sonnet 5.5: strong reasoning and vision for coaching chat and weekly-review advice, half Opus's price.
-//   vision = Claude Haiku 5.5: fast and very cheap for meal photos and food lookups (fractions of a penny each).
-const AI = {coach: {model: 'claude-sonnet-5-5', effort: 'medium', fallback: true}, vision: {model: 'claude-haiku-5-5', effort: 'low', fallback: false}};
+//   photo  = Claude Sonnet 5.5 at low effort: recognises dishes far better than Haiku (about 0.3p a photo).
+//   vision = Claude Haiku 5.5: fast and very cheap for text food lookups and nutrition labels (fractions of a penny).
+const AI = {coach: {model: 'claude-sonnet-5-5', effort: 'medium', fallback: true}, photo: {model: 'claude-sonnet-5-5', effort: 'low', fallback: true}, vision: {model: 'claude-haiku-5-5', effort: 'low', fallback: false}};
 const aiKey = () => { try { return localStorage.getItem(AI_KEY) || ''; } catch { return ''; } };
 function setAiKey(v) { try { v.trim() ? localStorage.setItem(AI_KEY, v.trim()) : localStorage.removeItem(AI_KEY); } catch {} render(); }
 
@@ -72,8 +73,8 @@ async function estimatePhoto() {
   estBusy = true; render();
   try {
     const content = [...d.photos.map(ph => ({type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: ph.split(',')[1]}})),
-      {type: 'text', text: CLAUDE_PROMPT + (d.text ? `\nThe user says: ${d.text}` : '') + '\nWork out portion weights yourself from visual cues (standard dinner plate about 26 cm, cutlery, cups, hands, packaging). Never ask the user to weigh. Include visible oil, butter, sauces and drinks. Use typical UK recipes, including Caribbean, Asian and takeaway dishes. If unsure of an item, still give your best guess.'}];
-    const items = parsePasted(await claude('You estimate food portions and nutrition from photos for a UK fitness app. Reply only in the requested line format.', [{role: 'user', content}], 2000, 'vision'));
+      {type: 'text', text: CLAUDE_PROMPT + (d.where ? `\nWhere it's from: ${d.where}${/home/i.test(d.where) ? ' (home cooking: assume typical home recipes and oil)' : ' (use that restaurant or takeaway\'s typical dishes, portions and published nutrition)'}` : '') + (d.text ? `\nThe user says: ${d.text}` : '') + '\nWork out portion weights yourself from visual cues (standard dinner plate about 26 cm, cutlery, cups, hands, packaging). Never ask the user to weigh. Include visible oil, butter, sauces and drinks. Use typical UK recipes, including Caribbean, Asian and takeaway dishes. If unsure of an item, still give your best guess.'}];
+    const items = parsePasted(await claude('You estimate food portions and nutrition from photos for a UK fitness app. Reply only in the requested line format.', [{role: 'user', content}], 2000, 'photo'));
     if (!items.length) throw new Error("Couldn't read an estimate from the reply. Describe the meal instead.");
     d.items.push(...items); d.askedOil = true; // Claude already includes visible oil and sauces
   } catch (e) { alert(e.message); }
