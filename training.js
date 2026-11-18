@@ -10,6 +10,8 @@ const LIB = [
   ['Lat pulldown', 'Back', ['Lat pulldown'], 90], ['Pull-up', 'Back', ['Pull-up bar'], 120], ['Seated cable row', 'Back', ['Seated row machine'], 90], ['One-arm dumbbell row', 'Back', ['Dumbbells', 'Flat bench'], 90], ['Band row', 'Back', ['Resistance bands'], 60],
   ['Overhead press', 'Shoulders', ['Barbell'], 120], ['Seated dumbbell press', 'Shoulders', ['Dumbbells', 'Adjustable bench'], 90], ['Shoulder press machine', 'Shoulders', ['Shoulder press machine'], 90], ['Lateral raise', 'Shoulders', ['Dumbbells'], 60], ['Cable lateral raise', 'Shoulders', ['Cable machine'], 60],
   ['Dumbbell curl', 'Arms', ['Dumbbells'], 60], ['Cable triceps pushdown', 'Arms', ['Cable machine'], 60], ['Band curl', 'Arms', ['Resistance bands'], 60],
+  ['Incline dumbbell press', 'Chest', ['Dumbbells', 'Adjustable bench'], 90], ['Dumbbell fly', 'Chest', ['Dumbbells', 'Flat bench'], 60], ['Face pull', 'Shoulders', ['Cable machine'], 60],
+  ['Hammer curl', 'Arms', ['Dumbbells'], 60], ['Overhead triceps extension', 'Arms', ['Dumbbells'], 60], ['Plank', 'Core', [], 45],
 ];
 const libOf = n => LIB.find(l => l[0] === n) || [n, 'Other', [], 90];
 const gym = () => S.gyms.find(g => g.id == S.gymId) || S.gyms[0];
@@ -56,29 +58,56 @@ const liftMinutes = items => Math.round(estMinutes(items) - restMin(items)); // 
 const timeLabel = items => `~${liftMinutes(items)} min workout · ~${estMinutes(items)} min with rests`;
 const accRank = n => (isCompound(n) ? 1 : 0) + (libOf(n)[2].every(e => e === 'Resistance bands') ? 2 : 0);
 const totalCap = () => +S.settings.totalCap || 60;
-// slots: 'C:Group' = compound, 'Group' = accessory, trailing '*' = optional
+// Movement patterns, best "whole muscle" choice first. A body part = one main movement + one that finishes it off
+// (e.g. flat press hits the whole chest, a fly adds the stretch). Max 2–3 exercises per body part in a session.
+const PAT = {
+  press: ['Barbell bench press', 'Dumbbell bench press', 'Chest press machine', 'Incline dumbbell press', 'Push-up'], fly: ['Cable fly', 'Dumbbell fly'],
+  vpull: ['Lat pulldown', 'Pull-up'], row: ['Seated cable row', 'One-arm dumbbell row', 'Band row'],
+  ohp: ['Seated dumbbell press', 'Shoulder press machine', 'Overhead press'], lateral: ['Lateral raise', 'Cable lateral raise'], rear: ['Face pull'],
+  curl: ['Dumbbell curl', 'Hammer curl', 'Band curl'], tri: ['Cable triceps pushdown', 'Overhead triceps extension'],
+  squat: ['Barbell back squat', 'Leg press', 'Smith machine squat', 'Goblet squat', 'Bodyweight split squat'], quad: ['Leg extension', 'Bodyweight split squat'],
+  hinge: ['Romanian deadlift', 'Dumbbell Romanian deadlift', 'Kettlebell swing', 'Glute bridge'], ham: ['Leg curl', 'Glute bridge'],
+  lunge: ['Bodyweight split squat', 'Goblet squat'], core: ['Plank'],
+};
+// Session templates. 'H:x' = heavy main lift (full rest); [x, y] = superset; trailing '*' = optional.
+const TEMPLATES = {
+  Upper: ['H:press', 'H:row', ['vpull', 'ohp'], ['fly', 'lateral'], ['curl*', 'tri*']],           // chest 2 · back 2 · shoulders 2 · arms 2
+  Lower: ['H:squat', 'H:hinge', ['quad', 'ham'], ['lunge*', 'core*']],                             // quads 2–3 · hamstrings/glutes 2 · core
+  'Full body A': ['H:squat', 'H:press', ['row', 'lateral'], ['ham', 'tri*']],
+  'Full body B': ['H:hinge', 'H:vpull', ['ohp', 'quad'], ['fly', 'curl*']],
+};
+const SPLITS = {
+  ul: {label: 'Upper body / Lower body', names: ['Upper', 'Lower']},
+  fb: {label: 'Full body each session', names: ['Full body A', 'Full body B']},
+};
+const defaultSplit = n => n === 3 ? 'fb' : 'ul';
+function pickFor(pat, g, used, prev) {
+  const all = (PAT[pat] || []).filter(x => !used.includes(x) && equipOk(g, x) && willing(x)).sort((x, y) => likeScore(x) - likeScore(y)); // stable: keeps best-first order within like groups
+  return [...all.filter(x => !prev.includes(x)), ...all.filter(x => prev.includes(x))];
+}
 function buildRoutine(name, slots, g, limit, prev = []) {
   const [cs, cr, crest, as, ar, arest] = VOLUME[P().experience] || VOLUME['Under 1 year'], used = [], items = [], missing = [];
-  for (const slot of slots) {
-    const optional = slot.endsWith('*'), comp = slot.startsWith('C:'), group = slot.replace(/^C:|[*]$/g, '');
-    const all = candidates(group, g, used).filter(x => comp ? isCompound(x) : true).sort((x, y) => comp ? 0 : accRank(x) - accRank(y)); // accessories: isolation first, then machine/free-weight compounds, then bodyweight/bands
-    const c = [...all.filter(x => !prev.includes(x)), ...all.filter(x => prev.includes(x))]; // vary from the previous routine when possible
-    if (!c.length) { missing.push(group); continue; }
+  const make = (slot, ss) => {
+    const optional = slot.endsWith('*'), heavy = slot.startsWith('H:'), pat = slot.replace(/^H:|[*]$/g, ''), c = pickFor(pat, g, used, prev);
+    if (!c.length) { missing.push(pat); return null; }
     used.push(c[0]);
-    items.push(comp ? {ex: c[0], sets: cs, reps: cr, rest: crest, alt: c[1] || '', optional: false, compound: true}
-      : {ex: c[0], sets: optional ? 2 : as, reps: ar, rest: arest, alt: c[1] || '', optional});
+    return heavy ? {ex: c[0], sets: cs, reps: cr, rest: crest, alt: c[1] || '', optional: false, compound: true}
+      : {ex: c[0], sets: optional ? 2 : as, reps: pat === 'core' ? '30–45 s' : ar, rest: arest, alt: c[1] || '', optional, ss};
+  };
+  for (const slot of slots) {
+    if (Array.isArray(slot)) { const x = make(slot[0], 'a'), y = make(slot[1], 'b');
+      if (x && y) { x.sets = y.sets = Math.min(x.sets, y.sets); items.push(x, y); } else for (const z of [x, y]) if (z) { z.ss = ''; items.push(z); } }
+    else { const x = make(slot, ''); if (x) items.push(x); }
   }
-  // pair accessories into supersets (1+2, 3+4 …) with matching sets
-  const acc = items.filter(i => !i.compound);
-  for (let k = 0; k + 1 < acc.length; k += 2) { acc[k].ss = 'a'; acc[k + 1].ss = 'b'; acc[k + 1].sets = acc[k].sets = Math.min(acc[k].sets, acc[k + 1].sets); }
   const over = () => liftMinutes(items) > limit || estMinutes(items) > totalCap();
   const partner = it => it.ss === 'a' ? items[items.indexOf(it) + 1] : it.ss === 'b' ? items[items.indexOf(it) - 1] : null;
   const bump = (it, d) => { it.sets += d; const p = partner(it); if (p) p.sets = it.sets; };
-  // fit both caps: trim accessory sets (last first), then drop the optional one, then the last accessory. Compounds stay.
+  const dropLast = () => { const l = items.pop(); if (l.ss === 'b') items.pop(); };
+  // fit both caps: trim accessory sets (last first), then drop optional pairs, then the last accessory. Main lifts stay.
   for (let i = items.length - 1; over() && i >= 0; i--) if (!items[i].compound && items[i].sets > 2) { bump(items[i], -1); i = items.length; }
-  if (over()) { const o = items.findIndex(i => i.optional); if (o > -1) { const p = partner(items[o]); if (p) delete p.ss; items.splice(o, 1); } }
-  while (over() && items.length > 3 && !items.at(-1).compound) { const l = items.pop(); if (l.ss === 'b') delete items.at(-1).ss; }
-  // use the time you have: add sets (accessories first, max 4; then compounds, max 5) while both caps hold
+  while (over() && items.at(-1)?.optional) dropLast();
+  while (over() && items.length > 4 && !items.at(-1).compound) dropLast();
+  // use the time you have: add sets (accessories first, max 4; then main lifts, max 5) while both caps hold
   for (let grew = true; grew;) { grew = false;
     for (const it of [...items.filter(i => !i.compound && i.ss !== 'b'), ...items.filter(i => i.compound)]) {
       if (it.sets >= (it.compound ? 5 : 4)) continue;
@@ -87,11 +116,8 @@ function buildRoutine(name, slots, g, limit, prev = []) {
   return {id: uid(), name, items, missing, generated: true, gymId: g.id};
 }
 function generatePlan() {
-  const g = gym(), days = Array.isArray(P().days) ? P().days : [], limit = +P().session || 45;
-  const split = days.length >= 4
-    ? [['Upper', ['C:Chest', 'C:Back', 'Shoulders', 'Back', 'Chest', 'Arms*']], ['Lower', ['C:Legs', 'C:Hamstrings', 'Legs', 'Hamstrings', 'Shoulders*']]]
-    : [['Full body A', ['C:Legs', 'C:Chest', 'Back', 'Hamstrings', 'Shoulders', 'Arms*']], ['Full body B', ['C:Hamstrings', 'C:Back', 'Chest', 'Legs', 'Shoulders', 'Arms*']]];
-  const routines = []; for (const [n, s] of split) routines.push(buildRoutine(n, s, g, limit, routines.flatMap(r => r.items.map(i => i.ex))));
+  const g = gym(), days = Array.isArray(P().days) ? P().days : [], limit = +P().session || 45, sp = SPLITS[P().split] || SPLITS[defaultSplit(days.length)];
+  const routines = []; for (const n of sp.names) routines.push(buildRoutine(n, TEMPLATES[n], g, limit, routines.flatMap(r => r.items.map(i => i.ex))));
   const week = {}; days.forEach((d, i) => week[d] = routines[i % routines.length].id);
   S.pending = {kind: 'training', routines, week, at: today()}; save();
 }
@@ -109,6 +135,9 @@ screens.Generate = () => {
     <p>${Array.isArray(p.days) ? `Saved: <b>${p.days.join(', ')}</b> (${p.days.length} days a week). Correct?` : 'No training days saved yet.'}</p>
     ${Array.isArray(p.days) ? `<button onclick="P().daysConfirmed=true;save();render()">Yes</button>` : ''}
     <button class="sec mt" onclick="editAnswer('days','Generate')">${Array.isArray(p.days) ? 'Change days' : 'Choose days'}</button></div>`;
+  if (!p.split || p.splitDays !== p.days.length) { const n = p.days.length, rec = defaultSplit(n);
+    return `<h1>How should your week be split?</h1><div class="card"><p class="mute">You train ${n} day${n === 1 ? '' : 's'} a week. Every session covers each body part with 2–3 exercises: a main lift for the whole muscle, plus one to finish it off.</p>
+      ${Object.entries(SPLITS).map(([k, v]) => `<button class="${k === rec ? '' : 'sec'} mt" onclick="P().split='${k}';P().splitDays=${n};S.pending=null;save();render()">${v.label}${k === rec ? ' (recommended)' : ''}<br><span style="font-weight:400;font-size:14px">${k === 'ul' ? (n === 2 ? 'Day 1 full upper body: chest, back, shoulders, arms. Day 2 legs.' : 'Alternate upper and lower days.') : 'Each session hits legs, chest, back and shoulders.'}</span></button>`).join('')}</div>`; }
   for (const k of ['experience', 'equipLike', 'equipAvoid', 'clinician']) if (p[k] === undefined) return askHere(k);
   if (!g.confirmedAt) { S.gymId = g.id; return inventoryCheck(g, 'Generate'); }
   if (!S.pending || S.pending.kind !== 'training') generatePlan();

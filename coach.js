@@ -125,6 +125,7 @@ screens.Settings = () => {
     <p class="mute">Plans fit both. Smaller exercises are paired as supersets to save time; the big lifts keep full rest. Rebuild your plan to apply changes.</p>
     ${num('Default rest between sets', S.settings.restDefault, "setS('restDefault',+this.value||'')", 15, 'sec')}
     <p class="mute">Blank uses a sensible rest for each exercise (longer for big lifts).</p>
+    <label>Week split</label><select onchange="S.profile.split=this.value;S.profile.splitDays=(P().days||[]).length;save();render()">${Object.entries(SPLITS).map(([v, o]) => `<option value="${v}" ${(P().split || defaultSplit((P().days || []).length)) === v ? 'selected' : ''}>${o.label}</option>`).join('')}</select>
     <label>Stick with each plan for</label><select onchange="setS('planWeeks',+this.value);if(S.plan)S.plan.weeks=+this.value;save()">${[4, 5, 6].map(n => `<option value="${n}" ${(+S.settings.planWeeks || 6) === n ? 'selected' : ''}>${n} weeks</option>`).join('')}</select>
     ${tog('Start the rest timer when I tick a set', 'autoRest')}${tog('Sound when rest ends', 'sound')}${tog('Vibrate when rest ends (not on iPhone)', 'vibrate')}
     ${exs.length ? `<h3>Rest per exercise</h3>${exs.map(e => num(esc(e), restOf(e), `S.rest[${js(e)}]=+this.value||undefined;if(!S.rest[${js(e)}])delete S.rest[${js(e)}];save();render()`, 15, 'sec')).join('')}` : ''}</div>
