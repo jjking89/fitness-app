@@ -216,17 +216,15 @@ screens.Meal = () => {
   const d = S.draft;
   if (!d) return `<h1>Meal</h1><div class="card"><p>No draft open.</p><button onclick="openMeal('type')">Start a meal</button></div>`;
   const [k, p, c, f, fb] = draftTotals(d.items), q = questions(d), unknown = d.items.filter(x => x.src === 'unknown').length, est = d.items.some(x => x.src !== 'packet');
-  const rec = recentMeals(6).filter(m => !d.slot || slotOf(m) === d.slot).slice(0, 4);
-  const slotSel = `<label class="slotsel">Meal <select aria-label="Change meal" onchange="S.draft.slot=this.value;save();render()">${['', ...MEAL_SLOTS.map(x => x[0])].map(s => `<option value="${s}" ${(d.slot || '') === s ? 'selected' : ''}>${s || 'Auto (time of day)'}</option>`).join('')}</select></label>`;
-  const head = `<div class="sec-h"><h1>${d.slot ? 'Log ' + d.slot.toLowerCase() : 'Log food'}</h1><button class="link" style="width:auto" onclick="if(!S.draft.items.length||confirm('Discard this meal?')){S.draft=null;save();go('Today')}">Cancel</button></div>${slotSel}`;
+  const slot = d.slot || slotNow();
+  const head = `<div class="mhead"><button class="rnd" onclick="if(!S.draft.items.length||confirm('Discard this meal?')){S.draft=null;quickAdd=false;save();go(mealBack)}" aria-label="Cancel">‹</button>
+    <select class="ttl" aria-label="Change meal" onchange="S.draft.slot=this.value;save();render()">${MEAL_SLOTS.map(x => `<option ${slot === x[0] ? 'selected' : ''}>${x[0]}</option>`).join('')}</select><span></span></div>`;
   const input = (label) => `<div class="card"><label for="mealText">${label}</label>
     <textarea id="mealText" rows="3" placeholder="e.g. two eggs, toast with butter and a coffee" oninput="S.draft.text=this.value;save()">${esc(d.text)}</textarea>
     <p id="speakMsg" class="mute"></p><button class="mt" onclick="applyMealText()">${d.items.length ? 'Update' : 'Next'}</button></div>`;
   const more = `<button class="link" onclick="S.draft.items.push({id:uid(),name:'New item',fam:'',per100:null,grams:100,unitG:100,src:'unknown',vary:false,qtyGiven:true});save();render()">+ Add food manually</button>`;
   // Step 1: choose how to log
-  if (!d.items.length && !d.photos.length && !d.mode) return `${head}
-    <div class="acts4"><button class="sec" onclick="photoIn.click()"><b>📷</b>Photo</button><button class="sec" onclick="scanBarcode()"><b>▥</b>Barcode</button><button class="sec" onclick="S.draft.mode='speak';render();speak()"><b>🎤</b>Speak</button><button class="sec" onclick="S.draft.mode='type';render();document.getElementById('mealText').focus()"><b>⌨️</b>Type</button></div>
-    ${rec.length ? `<h3>Recent</h3><div class="card"><ul>${rec.map(m => `<li><span>${esc(m.name)}<br><span class="mute">${gb(m.kcal)} kcal</span></span><button onclick="S.draft=null;repeatMeal({...${js(pick(m, MEAL_KEYS))},slot:${js(d.slot || slotOf(m))}});go('Today')">+ Add</button></li>`).join('')}</ul></div>` : ''}${more}`;
+  if (!d.items.length && !d.photos.length && !d.mode) return head + mealStep1(slot) + more;
   // Step 2: describe it (typed, spoken or photo)
   if (!d.items.length) return `${head}
     ${d.photos.map((ph, i) => `<img src="${ph}" alt="Meal photo ${i + 1}" class="mphoto">`).join('')}
@@ -265,7 +263,7 @@ function favMeal(id) { const m = S.meals.find(x => x.id == id); if (S.favs.some(
 let foodDay = null; const fDay = () => foodDay || today();
 const dayNav = () => `<div class="daynav"><button class="link" onclick="foodDay=dayOffset(-1,fDay());render()" aria-label="Previous day">‹</button><b>${fDay() === today() ? 'Today' : ukDate(fDay())}</b><button class="link" ${fDay() === today() ? 'disabled' : ''} onclick="foodDay=dayOffset(1,fDay());if(foodDay>=today())foodDay=null;render()" aria-label="Next day">›</button></div>`;
 const mealActions = () => `${dayNav()}${MEAL_SLOTS.map(sl => mealSlotCard(sl, S.meals.filter(m => m.date === fDay() && slotOf(m) === sl[0]), true)).join('')}${completeBtn(fDay())}
-  ${S.draft ? `<button class="sec mt" onclick="go('Meal')">Continue draft (${S.draft.items.length} item${S.draft.items.length === 1 ? '' : 's'})</button>` : ''}`;
+  ${S.draft?.items.length ? `<button class="sec mt" onclick="go('Meal')">Continue draft (${S.draft.items.length} item${S.draft.items.length === 1 ? '' : 's'})</button>` : ''}`;
 function dayTotals(d = today()) { const m = S.meals.filter(x => x.date === d); return {kcal: sum(m, 'kcal'), protein: sum(m, 'protein'), carbs: sum(m, 'carbs'), fat: sum(m, 'fat'), fibre: sum(m, 'fibre'), water: sum(S.water.filter(x => x.date === d), 'ml'), n: m.length}; }
 
 screens.Food = () => {
@@ -382,4 +380,54 @@ screens.Device = () => {
   <p class="mute">${esc(navigator.userAgent)}</p>
   <button class="sec" onclick="navigator.storage?.persist?.().then(ok=>alert(ok?'Browser agreed to keep this data.':'Browser did not grant persistent storage. Keep regular backups.'))">Ask browser to keep my data</button></div>`;
 };
-function logMeal(slot) { S.draft ||= newDraft(); S.draft.slot = slot; S.draft.date = cur === 'Food' ? fDay() : today(); save(); go('Meal'); }
+function logMeal(slot) { mealBack = cur === 'Food' ? 'Food' : 'Today'; S.draft ||= newDraft(); S.draft.slot = slot; S.draft.date = cur === 'Food' ? fDay() : today(); save(); go('Meal'); }
+
+// ---------- Log meal step 1: search, History / Favourites / My foods, quick add ----------
+let mealBack = 'Food', mealTab = 'History', mealQ = '', quickAdd = false, srchT;
+const slotNow = () => slotOf({savedAt: Date.now()});
+const bankKcal = f => Math.round(f[3][0] * f[5] / 100);
+const foodToItem = f => ({id: uid(), name: f[1], fam: f[2], per100: f[3], grams: f[5], unitG: f[4], src: 'est', vary: !!f[6], qtyGiven: true, asked: true});
+// a food-bank / learned food as a ready-made meal entry at its default grams
+const foodAsMeal = (name, per100, g) => { const v = i => (per100[i] || 0) * g / 100; return {name, portion: `${g} g ${name}`, kcal: Math.round(v(0)), protein: n1(v(1)), carbs: n1(v(2)), fat: n1(v(3)), fibre: n1(v(4)), est: true}; };
+function addToSlot(m) { // instant log into the open meal, then back where the user came from
+  const slot = S.draft?.slot || slotNow(), date = S.draft?.date || today();
+  S.meals.push({id: uid(), date, ...pick(m, MEAL_KEYS), slot, savedAt: Date.now()}); S.draft = null; quickAdd = false; mealQ = ''; save(); go(mealBack); toastMsg('Added to ' + slot);
+}
+function addFoodToDraft(f) { S.draft.items.push(foodToItem(f)); mealQ = ''; save(); render(); }
+function addUnknown(q, ai) { const it = parseFood(q) || {id: uid(), name: q, fam: '', per100: null, grams: 100, unitG: 100, src: 'unknown', vary: false, qtyGiven: true}; S.draft.items.push(it); mealQ = ''; save(); render(); if (ai && it.src === 'unknown') lookupUnknown(); }
+const rowH = (name, sub, onclick) => `<li><span>${esc(name)}<br><span class="mute">${esc(sub)}</span></span><button class="rnd plus" onclick="${onclick}" aria-label="Add ${esc(name)}">+</button></li>`;
+function foodHits(q) {
+  q = q.toLowerCase().trim(); if (q.length < 2) return [];
+  const hit = (...s) => s.flat().some(x => String(x).toLowerCase().includes(q)), seen = new Set(), out = [];
+  const push = (name, sub, on) => { if (!seen.has(name.toLowerCase())) { seen.add(name.toLowerCase()); out.push(rowH(name, sub, on)); } };
+  for (const m of recentMeals(200)) if (hit(m.name)) push(m.name, `${gb(m.kcal)} cal · past meal`, `addToSlot(${js(pick(m, MEAL_KEYS))})`);
+  for (const f of [...(S.foods || []), ...FOODS]) if (hit(f[1], f[0])) push(f[1], `${bankKcal(f)} cal · ${f[5]} g`, `addFoodToDraft(${js(f)})`);
+  for (const [code, b] of Object.entries(S.barcodes || {})) if (b.per100 && hit(b.name)) { const g = b.serving || b.pack || 100; push(b.name, `${Math.round(b.per100[0] * g / 100)} cal · ${g} g`, `mealQ='';addProduct(${js(code)},${js(b)})`); }
+  return out.slice(0, 30);
+}
+const searchHTML = q => { const r = foodHits(q); return q.trim().length < 2 ? '' : r.length ? `<div class="card"><ul>${r.join('')}</ul></div>`
+  : `<div class="card"><p class="mute">Not found.</p>${aiKey() ? `<button class="sec" onclick="addUnknown(${js(q.trim())},true)">✨ Look it up with Claude</button>` : `<button class="sec" onclick="addUnknown(${js(q.trim())},false)">Add it manually</button>`}</div>`; };
+function mealSearch(v) { mealQ = v; clearTimeout(srchT); srchT = setTimeout(() => { const el = document.getElementById('srchRes'); if (el) el.innerHTML = searchHTML(mealQ); }, 150); }
+function mealList(slot) {
+  if (mealTab === 'Favourites') return S.favs.map(f => rowH(f.name, `${gb(f.kcal)} cal${f.portion ? ', ' + f.portion : ''}`, `addToSlot(${js(pick(f, MEAL_KEYS))})`));
+  if (mealTab === 'My Foods') return [...(S.foods || []).map(f => rowH(f[1], `${bankKcal(f)} cal, ${f[5]} g`, `addToSlot(${js(foodAsMeal(f[1], f[3], f[5]))})`)),
+    ...Object.values(S.barcodes || {}).filter(b => b.per100).map(b => { const g = b.serving || b.pack || 100; return rowH(b.name, `${Math.round(b.per100[0] * g / 100)} cal, ${g} g`, `addToSlot(${js({...foodAsMeal(b.name, b.per100, g), est: false})})`); })];
+  const r = recentMeals(40); return [...r.filter(m => slotOf(m) === slot), ...r.filter(m => slotOf(m) !== slot)].slice(0, 20).map(m => rowH(m.name, `${gb(m.kcal)} cal${m.portion ? ', ' + m.portion : ''}`, `addToSlot(${js(pick(m, MEAL_KEYS))})`));
+}
+function quickAddSave(f) {
+  const d = form(f), v = k => n1(+d[k] || 0);
+  addToSlot({name: d.name.trim() || 'Quick add', portion: '', kcal: Math.round(+d.kcal), protein: v('p'), carbs: v('c'), fat: v('f'), fibre: v('fb'), est: false});
+}
+function quickAddFor(slot, date) { mealBack = cur === 'Food' ? 'Food' : 'Today'; S.draft = {...newDraft(), slot, date}; quickAdd = true; slotMenu = null; save(); go('Meal'); }
+function mealStep1(slot) {
+  const rows = mealList(slot);
+  return `<input type="search" id="srch" class="mt" placeholder="Search foods, dishes, takeaways…" aria-label="Search foods" value="${esc(mealQ)}" oninput="mealSearch(this.value)" autocomplete="off">
+  <div id="srchRes">${searchHTML(mealQ)}</div>
+  ${quickAdd ? `<form class="card" onsubmit="event.preventDefault();quickAddSave(this)"><h2>Quick add</h2><input name="kcal" type="number" inputmode="decimal" min="1" placeholder="Calories (required)" required aria-label="Calories">
+    <div class="grid2 mt"><input name="p" type="number" inputmode="decimal" step="any" placeholder="Protein g" aria-label="Protein g"><input name="c" type="number" inputmode="decimal" step="any" placeholder="Carbs g" aria-label="Carbs g"><input name="f" type="number" inputmode="decimal" step="any" placeholder="Fat g" aria-label="Fat g"><input name="fb" type="number" inputmode="decimal" step="any" placeholder="Fibre g" aria-label="Fibre g"></div>
+    <input name="name" class="mt" placeholder="Name (optional)" aria-label="Name"><div class="grid2 mt"><button>Add to ${esc(slot.toLowerCase())}</button><button type="button" class="sec" onclick="quickAdd=false;render()">Cancel</button></div></form>` : ''}
+  <div class="acts4"><button class="sec" onclick="scanBarcode()"><b>▥</b>Barcode scan</button><button class="sec" onclick="S.draft.mode='speak';render();speak()"><b>🎤</b>Voice log</button><button class="sec" onclick="photoIn.click()"><b>📷</b>Meal scan</button><button class="sec" onclick="quickAdd=true;render()"><b>⚡</b>Quick add</button></div>
+  <button class="link" onclick="S.draft.mode='type';render();document.getElementById('mealText').focus()">Describe a whole meal instead</button>
+  <div class="utabs" role="tablist">${['History', 'Favourites', 'My Foods'].map(t => `<button role="tab" aria-selected="${t === mealTab}" class="${t === mealTab ? 'on' : ''}" onclick="mealTab='${t}';render()">${t}</button>`).join('')}</div>
+  ${rows.length ? `<div class="card"><ul>${rows.join('')}</ul></div>` : `<p class="mute center">${mealTab === 'History' ? 'Meals you log show here.' : mealTab === 'Favourites' ? 'Tap ☆ on a logged meal to make it a favourite.' : 'Foods looked up with Claude and scanned barcodes show here.'}</p>`}`;
+}

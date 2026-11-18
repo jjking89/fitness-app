@@ -255,13 +255,14 @@ const NAV_ICON = Object.fromEntries(Object.entries({
 }).map(([k, d]) => [k, `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`]));
 let cur = 'Today';
 const TAB_OF = {Settings: 'Today', Coach: 'Today', Meal: 'Food', Gyms: 'Training', Generate: 'Training', Routine: 'Training', Planner: 'Training', Interview: 'Today', Profile: 'Health', Backup: 'Health', Import: 'Health',
-  Meal: 'Food', MealPlan: 'Food', Shopping: 'Food', BodyImport: 'Progress', Review: 'Today', Clinician: 'Health', Device: 'Health'};
+  Meal: 'Food', MealPlan: 'Food', Shopping: 'Food', BodyImport: 'Progress', Review: 'Today', Menu: 'Today', Clinician: 'Health', Device: 'Health'};
 function go(s) { if (!['Interview', 'Generate'].includes(s)) ivSingle = null; cur = s; if (typeof busyFor !== 'undefined') busyFor = null; render(); scrollTo(0, 0); }
 function render() {
   coachTick(); autoReview();
   app.innerHTML = screens[cur]();
   const tab = cur === 'Edit' ? TAB_OF[editing?.back] || editing?.back : TAB_OF[cur] || cur;
   nav.innerHTML = ['Today', 'Food', 'Training', 'Progress', 'Health'].map(s => `<button class="${s === tab ? 'on' : ''}" onclick="go('${s}')"${s === tab ? ' aria-current="page"' : ''}>${NAV_ICON[s]}<span>${s === 'Today' ? 'Home' : s}</span>${s === 'Training' && S.active ? ' ●' : ''}</button>`).join('');
+  fab.hidden = ['Meal', 'Interview'].includes(cur);
   tick();
 }
 function boot() { load(); save(); render(); setInterval(tick, 500); document.addEventListener('visibilitychange', () => { tick(); if (!document.hidden && ['Today', 'Training'].includes(cur)) render(); }); }

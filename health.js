@@ -16,11 +16,23 @@ function weekStrip() { // Sunday-first current week; tick = diary completed, dot
 }
 const MEAL_SLOTS = [['Breakfast', 'sun'], ['Lunch', 'bowl'], ['Dinner', 'moon'], ['Snacks', 'apple']];
 const slotOf = m => { if (m.slot) return m.slot; if (!m.savedAt) return 'Snacks'; const h = new Date(m.savedAt).getHours(); return h < 11 ? 'Breakfast' : h < 16 ? 'Lunch' : h < 21 ? 'Dinner' : 'Snacks'; }; // display-only grouping
+let slotMenu = null;
+function copySlotYesterday(slot, d) {
+  const y = S.meals.filter(m => m.date === dayOffset(-1, d) && slotOf(m) === slot); slotMenu = null;
+  if (!y.length) { render(); return toastMsg(`No ${slot.toLowerCase()} logged the day before.`); }
+  y.forEach(m => S.meals.push({id: uid(), date: d, ...pick(m, MEAL_KEYS), slot, savedAt: Date.now()})); save(); render(); toastMsg(`Copied ${y.length} item(s) to ${slot}`);
+}
+function clearSlot(slot, d) {
+  const n = S.meals.filter(m => m.date === d && slotOf(m) === slot).length; slotMenu = null;
+  if (n && confirm(`Delete ${n} item(s) from ${slot}? This can't be undone.`)) { S.meals = S.meals.filter(m => !(m.date === d && slotOf(m) === slot)); save(); }
+  render();
+}
 function mealSlotCard([slot, icon], list, detail = false) {
   const k = sum(list, 'kcal'), c = sum(list, 'carbs') * 4, f = sum(list, 'fat') * 9, p = sum(list, 'protein') * 4, e = c + f + p, pc = v => e ? Math.round(v / e * 100) : 0;
   const first = list[0], n = first ? (first.items?.length > 1 ? first.items.length : list.length) : 0, label = first ? (first.items?.[0]?.name || first.name) : '';
   return `<div class="card meal"><span class="mic">${ic(IC[icon])}</span><div class="mb"><b>${slot}</b><div class="mute">${first ? esc(label) + (n > 1 ? ` and ${n - 1} more` : '') : 'Nothing logged'}</div>
-    ${first ? `<div class="mute">${gb(k)} kcal · C ${pc(c)}% · F ${pc(f)}% · P ${pc(p)}%</div>` : ''}</div><button class="pill" onclick="logMeal('${slot}')" aria-label="Log ${slot}">${detail && first ? '+ Add' : 'Log'}</button>
+    ${first ? `<div class="mute">${gb(k)} kcal · C ${pc(c)}% · F ${pc(f)}% · P ${pc(p)}%</div>` : ''}</div><button class="rnd dots" onclick="slotMenu=slotMenu===${js(slot)}?null:${js(slot)};render()" aria-expanded="${slotMenu === slot}" aria-label="More for ${slot}">•••</button><button class="pill" onclick="logMeal('${slot}')" aria-label="Log ${slot}">${detail && first ? '+ Add' : 'Log'}</button>
+    ${slotMenu === slot ? (d => `<div class="smenu"><button class="sec" onclick="copySlotYesterday('${slot}','${d}')">Copy from yesterday</button><button class="sec" onclick="quickAddFor('${slot}','${d}')">Quick add calories</button><button class="sec" onclick="clearSlot('${slot}','${d}')">Clear this meal</button></div>`)(detail ? fDay() : today()) : ''}
     ${detail && first ? `<ul class="entries">${list.map(m => `<li><span>${m.photo ? `<img class="thumb" src="${m.photo}" alt=""> ` : ''}${esc(m.name)}${m.est ? ' <span class="tag">estimate</span>' : ''}<br><span class="mute">${gb(m.kcal)} kcal · P ${gb(m.protein)} · C ${gb(m.carbs)} · F ${gb(m.fat)} g</span></span>
       <span style="white-space:nowrap"><button onclick="favMeal(${m.id})" aria-label="Add to favourites">☆</button><button onclick="editEntry('meals',${m.id})" aria-label="Edit">Edit</button><button onclick="del('meals',${m.id})" aria-label="Delete">✕</button></span></li>`).join('')}</ul>` : ''}</div>`;
 }
@@ -31,12 +43,12 @@ function macroCard(t) { // display only; fibre shows '–' until totals/targets 
 }
 screens.Today = () => {
   const t = dayTotals(), kt = +P().kcal, meals = S.meals.filter(m => m.date === today());
-  return `<div class="sec-h"><h1 class="xl">Today</h1><button class="link" style="width:auto" onclick="go('Settings')" aria-label="Settings">⚙️ Settings</button></div>${weekStrip()}
+  return `<div class="sec-h"><h1 class="xl">Today</h1><button class="rnd avatar" onclick="go('Menu')" aria-label="Menu and settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></button></div>${weekStrip()}
   ${!P().done ? `<div class="card"><h2>Set up your profile</h2><p class="mute">${S.iv ? `Question ${S.iv + 1} of ${QUESTIONS.length}` : 'One question at a time. Skip or say not sure to anything.'}</p><button onclick="go('Interview')">${S.iv ? 'Continue' : 'Start'}</button></div>` : ''}
   ${coachCard()}${S.reviews.at(-1)?.auto && S.reviews.at(-1).date === today() ? `<div class="note"><b>Your weekly review is ready.</b> <button class="mt" onclick="revId=S.reviews.at(-1).id;go('Review')">Open weekly review</button></div>` : ''}
   <div class="pills">
     <button class="pill" onclick="go('Coach')">💬 Ask coach</button></div>
-  ${S.draft ? `<button class="sec mt" onclick="go('Meal')">Continue meal draft (${S.draft.items.length})</button>` : ''}
+  ${S.draft?.items.length || S.draft?.photos.length ? `<button class="sec mt" onclick="go('Meal')">Continue meal draft (${S.draft.items.length})</button>` : ''}
   <div class="card mt"><div class="cal-h"><b>Calories</b><span class="mute">${kt ? (t.kcal <= kt ? gb(kt - t.kcal) + ' left' : gb(t.kcal - kt) + ' over') : 'no target'}</span></div>
     <div class="cal"><span class="big">${gb(t.kcal)}</span> cal${kt ? ` / ${gb(kt)}` : ''}</div>${kt ? mbar(t.kcal, kt, t.kcal > kt ? 'var(--warn)' : 'var(--acc)') : ''}</div>
   ${macroCard(t)}

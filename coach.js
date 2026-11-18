@@ -195,7 +195,7 @@ const completeBtn = (d = today()) => !S.done?.[d] && mainMeals(d)
   ? `<div class="donebar">✓ Breakfast, lunch and dinner logged: day complete</div>`
   : S.done?.[d]
   ? `<div class="donebar">✓ Diary complete for ${d === today() ? 'today' : ukDate(d)} <button class="link" style="width:auto" onclick="delete S.done['${d}'];save();render()">Reopen</button></div>`
-  : `<button class="mt" onclick="completeDay('${d}')">✓ Complete ${d === today() ? "today's" : ukDate(d)} entry</button>`;
+  : `<button class="link cdone" onclick="completeDay('${d}')">Complete diary</button>`;
 function completeDay(d = today()) {
   const eaten = dayTotals(d).kcal, w = allWeights().at(-1), tdee = S.coach.tdee || (w ? w.kg * 30 : 0);
   if (!eaten && !confirm('Nothing logged today. Mark it complete anyway?')) return;
@@ -240,4 +240,28 @@ function macrosFor(kcal, kg, wkRate) {
     `Fat ${fat} g: at least ${Math.round(ref * 0.6)}–${Math.round(ref * 0.7)} g a day for hormones and vitamin absorption.`,
     `Carbs ${carbs} g: what's left, to fuel your gym sessions and daily energy.`,
     `Fibre ${fibre} g: UK guidance is at least 30 g; about 14 g per 1,000 kcal helps fullness and digestion.`]};
+}
+
+// ---------- Menu (profile button on Home): grouped list ----------
+function openReport() { if (S.reviews.length) { revId = S.reviews.at(-1).id; go('Review'); } else startReview(); }
+screens.Menu = () => {
+  const w = allWeights(), lost = w.length > 1 ? n1(w[0].kg - w.at(-1).kg) : 0, s = streak();
+  const row = (label, on) => `<li><button class="mrow" onclick="${on}">${label}<span aria-hidden="true">›</span></button></li>`;
+  const grp = rows => `<div class="card mgrp"><ul>${rows.map(r => row(...r)).join('')}</ul></div>`;
+  return `<div class="mhead"><button class="rnd" onclick="go('Today')" aria-label="Back">‹</button><h1 class="ttl">Menu</h1><span></span></div>
+  <div class="card grid2 center"><div><span class="big">${s}</span><div class="mute">day streak</div></div><div><span class="big">${lost > 0 ? lost : 0}</span><div class="mute">kg lost</div></div></div>
+  ${grp([['Goals', "go('Settings')"], ['Weight &amp; body', "progTab='Body';go('Progress')"], ['Weekly report', 'openReport()'], ['Nutrition', "progTab='Nutrition';go('Progress')"]])}
+  ${grp([['My foods &amp; favourites', "mealTab='Favourites';logMeal(slotNow())"], ['Sleep &amp; steps', "go('Health')"], ['Ask coach', "go('Coach')"]])}
+  ${grp([['Settings', "go('Settings')"], ['Backup &amp; restore', "go('Backup')"], ['Profile answers', "go('Profile')"]])}`;
+};
+
+// ---------- floating + button: quick-log sheet ----------
+function closeSheet() { sheet.hidden = true; sheet.innerHTML = ''; }
+function openSheet() {
+  sheet.hidden = false;
+  sheet.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Quick log">
+    <button class="sbig" onclick="closeSheet();logMeal(slotNow())">🍽️ Log food</button>
+    <div class="sbox"><b>💧 Water</b><div class="grid2 mt"><button class="sec" onclick="closeSheet();add('water',{ml:250});toastMsg('Added 250 ml water')">+250 ml</button><button class="sec" onclick="closeSheet();add('water',{ml:500});toastMsg('Added 500 ml water')">+500 ml</button></div></div>
+    <form class="sbox" onsubmit="event.preventDefault();const kg=this.kg.value;closeSheet();add('weights',{kg});toastMsg('Weight saved')"><b>⚖️ Weight</b><div class="row mt"><input name="kg" type="number" step="0.1" min="20" inputmode="decimal" placeholder="kg" required aria-label="Weight in kg"><button style="flex:0 0 auto;width:auto">Save</button></div></form>
+    <button class="sbig sec" onclick="closeSheet();go('Training')">🏋️ Workout</button></div>`;
 }
