@@ -146,11 +146,6 @@ function applyMealText() {
   if (!S.draft.items.length && !before) return alert("I couldn't find any foods in that. Try e.g. \"two eggs and toast\".");
   S.draft.text = ''; save(); render();
 }
-function applyPaste() {
-  const its = parsePasted(document.getElementById('pasteText').value);
-  if (!its.length) return alert('No items with calories found. Use one item per line: name | grams | kcal | protein | carbs | fat | fibre');
-  S.draft.items.push(...its); save(); render();
-}
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 function speak() {
   const ta = document.getElementById('mealText'), msg = document.getElementById('speakMsg');
@@ -219,19 +214,15 @@ screens.Meal = () => {
   if (!d) return `<h1>Meal</h1><div class="card"><p>No draft open.</p><button onclick="openMeal('type')">Start a meal</button></div>`;
   const [k, p, c, f, fb] = draftTotals(d.items), q = questions(d), unknown = d.items.filter(x => x.src === 'unknown').length, est = d.items.some(x => x.src !== 'packet');
   const rec = recentMeals(6).filter(m => !d.slot || slotOf(m) === d.slot).slice(0, 4);
-  const head = `<div class="sec-h"><h1>${d.slot ? 'Log ' + d.slot.toLowerCase() : 'Log food'}</h1><button class="link" style="width:auto" onclick="if(!S.draft.items.length||confirm('Discard this meal?')){S.draft=null;save();go('Today')}">Cancel</button></div>`;
+  const slotSel = `<label class="slotsel">Meal <select aria-label="Change meal" onchange="S.draft.slot=this.value;save();render()">${['', ...MEAL_SLOTS.map(x => x[0])].map(s => `<option value="${s}" ${(d.slot || '') === s ? 'selected' : ''}>${s || 'Auto (time of day)'}</option>`).join('')}</select></label>`;
+  const head = `<div class="sec-h"><h1>${d.slot ? 'Log ' + d.slot.toLowerCase() : 'Log food'}</h1><button class="link" style="width:auto" onclick="if(!S.draft.items.length||confirm('Discard this meal?')){S.draft=null;save();go('Today')}">Cancel</button></div>${slotSel}`;
   const input = (label) => `<div class="card"><label for="mealText">${label}</label>
     <textarea id="mealText" rows="3" placeholder="e.g. two eggs, toast with butter and a coffee" oninput="S.draft.text=this.value;save()">${esc(d.text)}</textarea>
     <p id="speakMsg" class="mute"></p><button class="mt" onclick="applyMealText()">${d.items.length ? 'Update' : 'Next'}</button></div>`;
-  const more = `<details class="card more"><summary>More options</summary>
-    <label>Meal</label><select onchange="S.draft.slot=this.value;save();render()">${['', ...MEAL_SLOTS.map(x => x[0])].map(s => `<option value="${s}" ${(d.slot || '') === s ? 'selected' : ''}>${s || 'By time of day'}</option>`).join('')}</select>
-    <button class="sec mt" onclick="S.draft.items.push({id:uid(),name:'New item',fam:'',per100:null,grams:100,unitG:100,src:'unknown',vary:false,qtyGiven:true});save();render()">+ Add item by hand</button>
-    <h3>Paste an estimate</h3><p class="mute">From Claude Desktop: attach your photo there with this prompt, then paste the reply here.</p>
-    <button class="sec" onclick="copyText(CLAUDE_PROMPT)">Copy prompt</button>
-    <textarea id="pasteText" rows="3" class="mt" placeholder="Chicken thigh | 150 | 314 | 39 | 0 | 16 | 0"></textarea><button class="sec mt" onclick="applyPaste()">Add pasted items</button></details>`;
+  const more = `<button class="link" onclick="S.draft.items.push({id:uid(),name:'New item',fam:'',per100:null,grams:100,unitG:100,src:'unknown',vary:false,qtyGiven:true});save();render()">+ Add food manually</button>`;
   // Step 1: choose how to log
   if (!d.items.length && !d.photos.length && !d.mode) return `${head}
-    <div class="grid2 tiles3"><button onclick="photoIn.click()">📷<br>Photo</button><button onclick="scanBarcode()">▥<br>Scan barcode</button><button onclick="S.draft.mode='speak';render();speak()">🎤<br>Speak</button><button onclick="S.draft.mode='type';render();document.getElementById('mealText').focus()">⌨️<br>Type</button></div>
+    <div class="acts4"><button class="sec" onclick="photoIn.click()"><b>📷</b>Photo</button><button class="sec" onclick="scanBarcode()"><b>▥</b>Barcode</button><button class="sec" onclick="S.draft.mode='speak';render();speak()"><b>🎤</b>Speak</button><button class="sec" onclick="S.draft.mode='type';render();document.getElementById('mealText').focus()"><b>⌨️</b>Type</button></div>
     ${rec.length ? `<h3>Recent</h3><div class="card"><ul>${rec.map(m => `<li><span>${esc(m.name)}<br><span class="mute">${gb(m.kcal)} kcal</span></span><button onclick="S.draft=null;repeatMeal({...${esc(js(pick(m, MEAL_KEYS)))},slot:${esc(js(d.slot || slotOf(m)))}});go('Today')">+ Add</button></li>`).join('')}</ul></div>` : ''}${more}`;
   // Step 2: describe it (typed, spoken or photo)
   if (!d.items.length) return `${head}
@@ -252,7 +243,7 @@ screens.Meal = () => {
   <div class="card"><div class="sec-h"><div><span class="big">${Math.round(k)}</span> kcal${est ? ' <span class="tag">estimate</span>' : ''}</div><div class="mute" style="text-align:right">P ${n1(p)} · C ${n1(c)} · F ${n1(f)} g<br>Fibre ${n1(fb)} g</div></div>
     ${unknown ? `<p class="mute">${unknown} item(s) have no values yet: rename them or add packet values.</p>${aiKey() ? `<button class="sec" ${estBusy ? 'disabled' : ''} onclick="lookupUnknown()">${estBusy ? 'Looking up…' : '✨ Look up with Claude'}</button>` : ''}` : ''}
     <button class="mt" onclick="confirmMeal()">Save ${d.slot ? d.slot.toLowerCase() : 'meal'}</button></div>
-  <details class="card more"><summary>Add more or correct</summary>${input('e.g. “that was chicken thigh, I only ate half the rice”').replace(/^<div class="card">|<\/div>$/g, '')}
+  <details class="card more"><summary>Add another food</summary>${input('e.g. “that was chicken thigh, I only ate half the rice”').replace(/^<div class="card">|<\/div>$/g, '')}
     <div class="grid3 mt"><button class="sec" onclick="speak()">🎤 Speak</button><button class="sec" onclick="photoIn.click()">📷 Photo</button><button class="sec" onclick="scanBarcode()">▥ Scan</button></div>
     <label for="mealNm">Meal name (optional)</label><input id="mealNm" value="${esc(d.name)}" placeholder="${esc(d.items.map(x => x.name).join(', '))}" onchange="S.draft.name=this.value;save()"></details>
   ${more}`;

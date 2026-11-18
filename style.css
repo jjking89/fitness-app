@@ -207,3 +207,9 @@ details.more[open]>summary::before{content:'－ '}
 .entries li{font-size:15px}
 .daynav{display:flex;align-items:center;justify-content:space-between;margin:0 0 var(--s2)}
 .daynav button{width:auto;font-size:28px;min-width:48px}
+/* Meal step 1: compact 4-up action row */
+.acts4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:var(--s2) 0}
+.acts4>button{min-height:64px;height:68px;padding:6px 2px;font-size:12px;line-height:1.2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.acts4>button b{font-size:22px;font-weight:400}
+.slotsel{display:flex;align-items:center;gap:8px;margin:0 0 var(--s2);font-size:14px;color:var(--mute,inherit)}
+.slotsel select{width:auto;flex:0 1 auto;min-height:36px;padding:4px 8px}
