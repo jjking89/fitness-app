@@ -1,6 +1,7 @@
 // ===== Coach: weekly auto-targets from weigh-ins, "do this next" card, one-tap food, streaks =====
 // Uses dated weight readings and logged food only. Never uses scale scores, body-composition estimates, symptoms or medication.
-const KCAL_PER_KG = 7700, MAX_STEP = 150, KCAL_FLOOR = 1500; // ponytail: generic floor (no age/sex asked); a clinician's figure always wins
+const KCAL_PER_KG = 7700, MAX_STEP = 150;
+const kcalFloor = () => Math.max(1500, +S.settings.kcalFloor || 1800); // your lowest manageable daily calories (never under 1,500); a clinician's figure always wins
 const GOAL_RATE = {'Lose fat': -0.005, 'Build muscle': 0.0025}; // fraction of body weight per week; other goals hold weight
 const avgKg = list => list.reduce((a, x) => a + x.kg, 0) / list.length;
 const daysBetween = (a, b) => Math.round((+new Date(b + 'T12:00') - +new Date(a + 'T12:00')) / 864e5);
@@ -29,7 +30,7 @@ function calcTargets() {
   const goalAdj = Math.max(-2200, Math.min(500, wkRate * KCAL_PER_KG / 7));
   let kcal = tdee + goalAdj, cur = +P().kcal;
   if (cur) kcal = Math.max(cur - MAX_STEP, Math.min(cur + MAX_STEP, kcal));
-  kcal = r10(Math.max(KCAL_FLOOR, kcal));
+  kcal = r10(Math.max(kcalFloor(), kcal));
   const protein = Math.round(Math.min(200, kg * (P().goal === 'General fitness' ? 1.6 : 1.8)));
   const fat = Math.round(Math.max(kg * 0.6, kcal * 0.25 / 9)), carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
   return {date: last.date, kg: +kg.toFixed(1), rate, tdee: Math.round(tdee), how, t: {kcal, protein, carbs, fat, fibre: Math.max(30, Math.round(kcal / 1000 * 14))}};
@@ -64,7 +65,7 @@ function coachCard() {
   if (h && !h.seen) out.push(`<div class="coach-new"><b>New targets for this week</b><p class="mute">${TKEYS.map(k => `${k === 'kcal' ? 'Calories' : k[0].toUpperCase() + k.slice(1)} ${h.from[k] || '–'} → <b>${h.to[k]}</b>`).join(' · ')}</p>
     <p class="mute">Based on ${esc(h.how)}. ${has(P().clinician) || S.health.med.enabled || S.health.notes.length ? 'If your care team has given you targets, use theirs instead.' : ''}</p>
     <div class="grid2"><button onclick="S.coach.history.at(-1).seen=true;save();render()">OK</button><button class="sec" onclick="undoTargets()">Undo</button></div></div>`);
-  if (P().done && S.settings.autoTargets == null) out.push(`<div><b>Let me set your targets each week?</b><p class="mute">After each weekly weigh-in I'll update calories, protein, carbs, fat and fibre from your weight trend and the food you log. Changes are small (max ${MAX_STEP} kcal a week), never below ${KCAL_FLOOR} kcal, and you can undo them. ${S.health.med.enabled || has(P().clinician) ? 'You have care-team guidance or medication logged: check automatic targets with them.' : ''}</p>
+  if (P().done && S.settings.autoTargets == null) out.push(`<div><b>Let me set your targets each week?</b><p class="mute">After each weekly weigh-in I'll update calories, protein, carbs, fat and fibre from your weight trend and the food you log. Changes are small (max ${MAX_STEP} kcal a week), never below ${gb(kcalFloor())} kcal, and you can undo them. ${S.health.med.enabled || has(P().clinician) ? 'You have care-team guidance or medication logged: check automatic targets with them.' : ''}</p>
     <div class="grid2"><button onclick="S.settings.autoTargets=true;save();render()">Yes, do it for me</button><button class="sec" onclick="S.settings.autoTargets=false;save();render()">No thanks</button></div>`);
   if (S.plan?.start && planWeek() > S.plan.weeks) out.push(`<div><b>Your ${S.plan.weeks}-week plan is done 🎉</b><p class="mute">Time for a fresh block with new exercises.</p><button onclick="go('Generate')">Build my next plan</button></div>`);
   if (weighDue()) out.push(`<form onsubmit="event.preventDefault();add('weights',{kg:this.kg.value,source:'Weekly weigh-in'})"><b>Weekly weigh-in</b><p class="mute">Same time, after the loo, before food.</p>
@@ -111,7 +112,8 @@ screens.Settings = () => {
     ${num('Goal weight', P().goalWeight, "S.profile.goalWeight=+this.value||'';retarget()", .1, 'kg')}
     <label>How fast</label><div class="chips">${['Slow (about 1 kg a week)', 'Medium (about 1.5 kg a week)', 'Fast (about 2 kg a week)'].map(o => `<button class="chip ${P().pace === o ? 'on' : ''}" onclick="S.profile.pace=${esc(js(o))};S.profile.kgPerWeek=${o.match(/\d+(?:\.\d+)?(?= kg)/)[0]};retarget()">${o.split(' (')[0]}<br><small>${o.match(/\((.*)\)/)[1]}</small></button>`).join('')}</div>
     ${num('Or exact kg per week', P().kgPerWeek, "S.profile.kgPerWeek=+this.value||'';S.profile.pace='';retarget()", .05, 'kg/week')}
-    <p class="mute">Calories never go below 1,500 a day, so on Fast your real rate may be a little slower. Early weeks often drop faster (water).</p>
+    ${num('Lowest daily calories', kcalFloor(), "S.settings.kcalFloor=Math.max(1500,+this.value||1800);retarget()", 50, 'kcal')}
+    <p class="mute">Targets never go below this. If your pace needs fewer calories, the app holds this level and your real rate will be a bit slower. Early weeks often drop faster (water).</p>
     ${+P().kgPerWeek > 1 && (S.health.med.enabled || has(P().clinician) || S.health.notes.length) ? `<div class="note">With your heart care and medication, check a pace over 1 kg a week with your care team.</div>` : ''}
     ${goalInfo()}</div>
   <div class="card"><h2>Daily targets</h2>
