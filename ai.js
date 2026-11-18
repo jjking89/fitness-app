@@ -62,14 +62,16 @@ let estBusy = false;
 async function estimatePhoto() {
   const d = S.draft; if (!d?.photos.length || estBusy) return;
   if (!aiKey()) return go('Settings');
-  if (!confirm(`Send ${d.photos.length === 1 ? 'this photo' : 'these photos'}${d.text ? ' and your description' : ''} to Anthropic's Claude for an estimate? Nothing else is sent.`)) return;
+  if (!S.settings.photoConsent) { // asked once; turn off any time in Settings
+    if (!confirm('Estimate meal photos automatically? Each photo (and anything you typed) is sent to Anthropic\'s Claude to work out the food and portions. Nothing else is sent. You can turn this off in Settings.')) return;
+    S.settings.photoConsent = true; save(); }
   estBusy = true; render();
   try {
     const content = [...d.photos.map(ph => ({type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: ph.split(',')[1]}})),
-      {type: 'text', text: CLAUDE_PROMPT + (d.text ? `\nThe user says: ${d.text}` : '') + '\nUse typical UK portions. If unsure of an item, still give your best guess.'}];
+      {type: 'text', text: CLAUDE_PROMPT + (d.text ? `\nThe user says: ${d.text}` : '') + '\nWork out portion weights yourself from visual cues (standard dinner plate about 26 cm, cutlery, cups, hands, packaging). Never ask the user to weigh. Include visible oil, butter, sauces and drinks. Use typical UK recipes, including Caribbean, Asian and takeaway dishes. If unsure of an item, still give your best guess.'}];
     const items = parsePasted(await claude('You estimate food portions and nutrition from photos for a UK fitness app. Reply only in the requested line format.', [{role: 'user', content}], 2000));
     if (!items.length) throw new Error("Couldn't read an estimate from the reply. Describe the meal instead.");
-    d.items.push(...items); d.askedOil = false;
+    d.items.push(...items); d.askedOil = true; // Claude already includes visible oil and sauces
   } catch (e) { alert(e.message); }
   estBusy = false; save(); render();
 }

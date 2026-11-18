@@ -137,7 +137,8 @@ async function shrinkImage(f, max = 480) {
 photoIn.onchange = async () => {
   const f = photoIn.files[0]; photoIn.value = ''; if (!f) return;
   try { S.draft ||= newDraft(); S.draft.photos.push(await shrinkImage(f)); save(); go('Meal'); }
-  catch { alert('Could not read that image. Try another, or describe the meal instead.'); }
+  catch { return alert('Could not read that image. Try another, or describe the meal instead.'); }
+  if (aiKey() && S.settings.photoAuto !== false) estimatePhoto(); // hands-free: estimate straight away
 };
 function applyMealText() {
   const ta = document.getElementById('mealText'), t = ta.value.trim(); if (!t) return ta.focus();

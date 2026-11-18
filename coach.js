@@ -131,7 +131,8 @@ screens.Settings = () => {
     ${exs.length ? `<details class="more"><summary>Rest per exercise</summary>${exs.map(e => num(esc(e), restOf(e), `S.rest[${js(e)}]=+this.value||undefined;if(!S.rest[${js(e)}])delete S.rest[${js(e)}];save();render()`, 15, 'sec')).join('')}</details>` : ''}</div>
   <div class="card"><h2>AI coach (Claude)</h2><p class="mute">Powers Ask coach and one-tap photo estimates. Get a key at console.anthropic.com. The key stays on this device only and is never in backups. Each send asks first, and costs a few pence.</p>
     <input type="password" autocomplete="off" placeholder="${aiKey() ? 'Key saved: paste a new one to replace it' : 'sk-ant-…'}" onchange="setAiKey(this.value)" aria-label="Claude API key">
-    ${aiKey() ? `<button class="link" onclick="if(confirm('Remove the API key from this device?'))setAiKey('')">Remove key</button>` : ''}</div>
+    ${aiKey() ? `<button class="link" onclick="if(confirm('Remove the API key from this device?'))setAiKey('')">Remove key</button>` : ''}
+    <label class="chk"><input type="checkbox" ${S.settings.photoAuto !== false && S.settings.photoConsent ? 'checked' : ''} onchange="S.settings.photoAuto=this.checked;S.settings.photoConsent=this.checked;save()"> Estimate meal photos automatically</label></div>
   <div class="card"><h2>Reminders</h2>${tog('Show the weekly review on Sunday from 9 am', 'reminder')}
     <p class="mute">The review is built for you either way. Calendar reminder: Health → Weekly review.</p></div>
   <div class="card"><h2>More</h2><div class="grid2"><button class="sec" onclick="go('Profile')">Profile answers</button><button class="sec" onclick="go('Backup')">Backup &amp; restore</button>
