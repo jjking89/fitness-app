@@ -262,7 +262,7 @@ function render() {
   app.innerHTML = screens[cur]();
   const tab = cur === 'Edit' ? TAB_OF[editing?.back] || editing?.back : TAB_OF[cur] || cur;
   nav.innerHTML = ['Today', 'Food', 'Training', 'Progress', 'Health'].map(s => `<button class="${s === tab ? 'on' : ''}" onclick="go('${s}')"${s === tab ? ' aria-current="page"' : ''}>${NAV_ICON[s]}<span>${s === 'Today' ? 'Home' : s}</span>${s === 'Training' && S.active ? ' ●' : ''}</button>`).join('');
-  fab.hidden = ['Meal', 'Interview', 'Builder'].includes(cur);
+  fab.hidden = ['Meal', 'Interview', 'Builder', 'Generate', 'Training'].includes(cur);
   tick();
 }
 function boot() { load(); save(); render(); setInterval(tick, 500); document.addEventListener('visibilitychange', () => { tick(); if (!document.hidden && ['Today', 'Training'].includes(cur)) render(); }); }

@@ -12,7 +12,12 @@ const LIB = [
   ['Dumbbell curl', 'Arms', ['Dumbbells'], 60], ['Cable triceps pushdown', 'Arms', ['Cable machine'], 60], ['Band curl', 'Arms', ['Resistance bands'], 60],
   ['Incline dumbbell press', 'Chest', ['Dumbbells', 'Adjustable bench'], 90], ['Dumbbell fly', 'Chest', ['Dumbbells', 'Flat bench'], 60], ['Face pull', 'Shoulders', ['Cable machine'], 60],
   ['Hammer curl', 'Arms', ['Dumbbells'], 60], ['Overhead triceps extension', 'Arms', ['Dumbbells'], 60], ['Plank', 'Core', [], 45],
+  ['Treadmill/bike finisher', 'Cardio', [], 0],
 ];
+const FINISHER = 'Treadmill/bike finisher', CARDIO_EQ = ['Treadmill', 'Exercise bike', 'Rowing machine'];
+// setup checklists: label → LIB muscle group(s)
+const ZONES = {Chest: ['Chest'], Back: ['Back'], Shoulders: ['Shoulders'], Arms: ['Arms'], Legs: ['Legs'], 'Glutes/Hamstrings': ['Hamstrings'], 'Abs/Core': ['Core']};
+const zoneGroups = list => (Array.isArray(list) ? list : []).flatMap(z => ZONES[z] || []);
 const libOf = n => LIB.find(l => l[0] === n) || [n, 'Other', [], 90];
 const gym = () => S.gyms.find(g => g.id == S.gymId) || S.gyms[0];
 const restOf = n => +(S.rest[n] ?? (+S.settings.restDefault || libOf(n)[3]));
@@ -29,6 +34,7 @@ const equipOk = (g, ex) => { const ok = new Set(g.equipment.filter(e => e.status
 function willing(ex) {
   const l = libOf(ex), words = avoidTerms();
   if (S.prefs[ex] === 'avoid' || l[2].some(e => S.prefs[e] === 'avoid')) return false;
+  if (zoneGroups(P().protect).includes(l[1])) return false; // areas to protect (setup step)
   return !words.some(w => ex.toLowerCase().includes(w) || l[2].some(e => e.toLowerCase().includes(w)));
 }
 const likeScore = n => S.prefs[n] === 'like' || terms(P().equipLike).some(w => [n, ...libOf(n)[2]].some(x => x.toLowerCase().includes(w) || w.includes(x.toLowerCase()))) ? 0 : S.prefs[n] === 'dislike' ? 2 : 1;
@@ -53,7 +59,7 @@ const WARMUP = 5, WORK_MIN = 1.25, MOVE_MIN = 1.5; // minutes: warm-up, one work
 const restMin = items => items.reduce((t, i) => t + (i.ss === 'a' ? 0 : (i.sets - 1) * i.rest / 60), 0);
 function estMinutes(items, skipOptional = false) { // total time, rests included
   const it = items.filter(i => !(skipOptional && i.optional));
-  return Math.round(WARMUP + it.reduce((t, i) => t + i.sets * WORK_MIN + (i.ss === 'b' ? .5 : MOVE_MIN), 0) + restMin(it));
+  return Math.round(WARMUP + it.reduce((t, i) => t + (i.ex === FINISHER ? 10 : i.sets * WORK_MIN + (i.ss === 'b' ? .5 : MOVE_MIN)), 0) + restMin(it));
 }
 const liftMinutes = items => Math.round(estMinutes(items) - restMin(items)); // warm-up, sets and moving, no rests
 const timeLabel = items => `~${liftMinutes(items)} min workout · ~${estMinutes(items)} min with rests`;
@@ -75,12 +81,16 @@ const TEMPLATES = {
   Lower: ['H:squat', 'H:hinge', ['quad', 'ham'], ['lunge*', 'core*']],                             // quads 2–3 · hamstrings/glutes 2 · core
   'Full body A': ['H:squat', 'H:press', ['row', 'lateral'], ['ham', 'tri*']],
   'Full body B': ['H:hinge', 'H:vpull', ['ohp', 'quad'], ['fly', 'curl*']],
+  Push: ['H:press', 'H:ohp', ['fly', 'lateral'], ['tri', 'press*']],
+  Pull: ['H:row', 'H:vpull', ['rear', 'curl'], ['curl*', 'row*']],
+  Legs: ['H:squat', 'H:hinge', ['quad', 'ham'], ['lunge*', 'core*']],
 };
 const SPLITS = {
   ul: {label: 'Upper body / Lower body', names: ['Upper', 'Lower']},
   fb: {label: 'Full body each session', names: ['Full body A', 'Full body B']},
+  ppl: {label: 'Push / Pull / Legs', names: ['Push', 'Pull', 'Legs']},
 };
-const defaultSplit = n => n === 3 ? 'fb' : 'ul';
+const defaultSplit = n => n <= 1 || n === 3 ? 'fb' : n === 2 || n === 4 ? 'ul' : 'ppl';
 function pickFor(pat, g, used, prev) {
   const all = (PAT[pat] || []).filter(x => !used.includes(x) && equipOk(g, x) && willing(x)).sort((x, y) => likeScore(x) - likeScore(y)); // stable: keeps best-first order within like groups
   return [...all.filter(x => !prev.includes(x)), ...all.filter(x => prev.includes(x))];
@@ -99,47 +109,79 @@ function buildRoutine(name, slots, g, limit, prev = []) {
       if (x && y) { x.sets = y.sets = Math.min(x.sets, y.sets); items.push(x, y); } else for (const z of [x, y]) if (z) { z.ss = ''; items.push(z); } }
     else { const x = make(slot, ''); if (x) items.push(x); }
   }
+  // target zones: one extra set on that group's first accessory (optional ones become regular); kept when trimming
+  const fz = zoneGroups(P().focus);
+  for (const grp of new Set(fz)) { const it = items.find(i => !i.compound && libOf(i.ex)[1] === grp); if (it) { it.optional = false; it.focus = true; it.sets++; const p = it.ss === 'a' ? items[items.indexOf(it) + 1] : it.ss === 'b' ? items[items.indexOf(it) - 1] : null; if (p) p.sets = it.sets; } }
+  if (P().cardio && g.equipment.some(e => e.status === 'available' && CARDIO_EQ.includes(e.name)))
+    items.push({ex: FINISHER, sets: 1, reps: '10 min', rest: 0, alt: '', optional: true, ss: ''});
   const over = () => liftMinutes(items) > limit || estMinutes(items) > totalCap();
   const partner = it => it.ss === 'a' ? items[items.indexOf(it) + 1] : it.ss === 'b' ? items[items.indexOf(it) - 1] : null;
   const bump = (it, d) => { it.sets += d; const p = partner(it); if (p) p.sets = it.sets; };
   const dropLast = () => { const l = items.pop(); if (l.ss === 'b') items.pop(); };
   // fit both caps: trim accessory sets (last first), then drop optional pairs, then the last accessory. Main lifts stay.
-  for (let i = items.length - 1; over() && i >= 0; i--) if (!items[i].compound && items[i].sets > 2) { bump(items[i], -1); i = items.length; }
+  for (let i = items.length - 1; over() && i >= 0; i--) if (!items[i].compound && !items[i].focus && !partner(items[i])?.focus && items[i].sets > 2) { bump(items[i], -1); i = items.length; }
   while (over() && items.at(-1)?.optional) dropLast();
   while (over() && items.length > 4 && !items.at(-1).compound) dropLast();
   // use the time you have: add sets (accessories first, max 4; then main lifts, max 5) while both caps hold
   for (let grew = true; grew;) { grew = false;
-    for (const it of [...items.filter(i => !i.compound && i.ss !== 'b'), ...items.filter(i => i.compound)]) {
+    for (const it of [...items.filter(i => !i.compound && i.ss !== 'b' && i.ex !== FINISHER), ...items.filter(i => i.compound)]) {
       if (it.sets >= (it.compound ? 5 : 4)) continue;
       bump(it, 1); if (over()) bump(it, -1); else grew = true;
     } }
   return {id: uid(), name, items, missing, generated: true, gymId: g.id};
 }
 function generatePlan() {
-  const g = gym(), days = Array.isArray(P().days) ? P().days : [], limit = +P().session || 45, sp = SPLITS[P().split] || SPLITS[defaultSplit(days.length)];
+  const g = gym(), days = Array.isArray(P().days) ? P().days : [], limit = +P().session || 45, sp = (P().split === 'ppl' && days.length < 3 ? null : SPLITS[P().split]) || SPLITS[defaultSplit(days.length)];
   const routines = []; for (const n of sp.names) routines.push(buildRoutine(n, TEMPLATES[n], g, limit, routines.flatMap(r => r.items.map(i => i.ex))));
   const week = {}; days.forEach((d, i) => week[d] = routines[i % routines.length].id);
   S.pending = {kind: 'training', routines, week, at: today()}; save();
 }
 
 // ---------- generate flow: confirm branch & days, fill gaps one question at a time, confirm inventory, review ----------
+// Plan setup: one full-screen question per step, then confirm equipment, a short "building" screen and the review.
+let sStep = 0, sDone = false, building = 0;
+function startSetup() { sStep = 0; sDone = false; building = 0; S.pending = null; save(); go('Generate'); }
+const DAY_PRESET = {1: ['Mon'], 2: ['Mon', 'Thu'], 3: ['Mon', 'Wed', 'Fri'], 4: ['Mon', 'Tue', 'Thu', 'Fri'], 5: ['Mon', 'Tue', 'Wed', 'Fri', 'Sat'], 6: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], 7: DAYS};
+const opt = (on, title, sub, act, dis = false) => `<button class="opt${on ? ' on' : ''}" ${dis ? 'disabled' : `onclick="${act};save();render()"`} aria-pressed="${on}"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</button>`;
+const tickList = (key, none) => { const v = Array.isArray(P()[key]) ? P()[key] : [];
+  return `${none ? opt(Array.isArray(P()[key]) && !v.length, none, '', `P().${key}=[]`) : ''}${Object.keys(ZONES).map(z => opt(v.includes(z), z, '', `setupTick('${key}',${js(z)})`)).join('')}`; };
+function setupTick(key, z) { const v = Array.isArray(P()[key]) ? P()[key] : []; P()[key] = v.includes(z) ? v.filter(x => x !== z) : [...v, z]; }
+function setupDays(n) { const d = Array.isArray(P().days) ? P().days : []; if (d.length !== n) P().days = DAY_PRESET[n]; P().daysConfirmed = true; }
+function setupDay(d) { const v = Array.isArray(P().days) ? P().days : []; P().days = v.includes(d) ? v.filter(x => x !== d) : DAYS.filter(x => x === d || v.includes(x)); P().daysConfirmed = true; }
+const SETUP = [
+  ['What\'s your main goal for training?', '', p => [['Build muscle', 'Build muscle', 'Focus on building muscle mass and size.'], ['Get stronger', 'Strength', 'Lift heavier loads and get stronger.'], ['Lose fat', 'Lose fat while keeping muscle', 'Reduce body fat and hold on to muscle.'], ['General fitness', 'Maintain', 'Keep your current muscle and fitness.']]
+    .map(([v, t, s]) => opt(p.goal === v, t, s, `P().goal=${js(v)}`)).join(''), p => has(p.goal)],
+  ['Add cardio to your plan?', 'Short cardio at the end of some workouts.', p => opt(p.cardio === true, 'Yes, add cardio finishers', '8–10 min on a treadmill or bike, if your gym has one', 'P().cardio=true') + opt(p.cardio === false, 'No, strength only', 'Your plan won\'t include any cardio', 'P().cardio=false'), p => typeof p.cardio === 'boolean'],
+  ['What is your fitness level?', '', p => [['New to it', 'Beginner', 'Train occasionally and know some basics'], ['1–3 years', 'Intermediate', 'Train regularly and know most exercises'], ['3+ years', 'Advanced', 'Follow a structured plan and train hard']]
+    .map(([v, t, s]) => opt(p.experience === v || (v === 'New to it' && p.experience === 'Under 1 year'), t, s, `P().experience=${js(v)}`)).join(''), p => has(p.experience)],
+  ['How many times a week would you like to train?', 'Then tick the days that suit you.', p => { const d = Array.isArray(p.days) ? p.days : [];
+    return `<div class="grid2">${[1, 2, 3, 4, 5, 6, 7].map(n => opt(d.length === n, n === 7 ? 'Everyday' : `${n} day${n > 1 ? 's' : ''}`, '', `setupDays(${n})`)).join('')}</div>
+      <div class="chips mt">${DAYS.map(x => `<button class="chip${d.includes(x) ? ' on' : ''}" onclick="setupDay('${x}');save();render()" aria-pressed="${d.includes(x)}">${x}</button>`).join('')}</div>`; }, p => Array.isArray(p.days) && p.days.length > 0],
+  ['Which training split fits you best?', '', p => { const n = p.days.length, rec = defaultSplit(n), set = k => `P().split='${k}';P().splitDays=${n}`;
+    return opt(!p.split || p.split === 'auto', 'Recommended', `${SPLITS[rec].label} for ${n} day${n > 1 ? 's' : ''} a week`, set('auto'))
+      + opt(p.split === 'ppl' && n >= 3, 'Push / Pull / Legs', n >= 3 ? 'Chest, shoulders & triceps · back & biceps · legs' : 'Needs 3 or more training days', set('ppl'), n < 3)
+      + opt(p.split === 'ul', 'Upper / Lower', 'Alternate upper-body and leg days', set('ul')) + opt(p.split === 'fb', 'Full body', 'Every session hits legs, chest, back and shoulders', set('fb')); }, () => true],
+  ['What is a perfect length of a workout for you?', 'Workout time only, rests not counted.', p => [30, 45, 60, 75].map(m => opt(+p.session === m, `${m} min${m === 45 ? ' <span class="tag">ideal</span>' : ''}`, '', `P().session=${m}`)).join(''), p => +p.session > 0],
+  ['What are your target zones?', 'These get an extra set in your plan.', () => tickList('focus'), () => true],
+  ['Any injuries or areas to protect?', 'Exercises that load these are left out.', () => tickList('protect', 'None'), p => Array.isArray(p.protect)],
+];
+function setupScreen() {
+  const p = P(), [title, sub, body, ok] = SETUP[sStep], last = sStep === SETUP.length - 1;
+  return `<div class="stop"><button class="rnd" onclick="${sStep ? 'sStep--;render()' : "go('Training')"}" aria-label="Back">${ic(IC.back)}</button><div class="sprog"><i style="width:${(sStep + 1) / SETUP.length * 100}%"></i></div></div>
+  <h1>${title}</h1>${sub ? `<p class="mute">${sub}</p>` : ''}<div class="opts">${body(p)}</div>
+  <div class="snav">${sStep ? `<button class="sec" onclick="sStep--;render()">Back</button>` : ''}<button ${ok(p) ? '' : 'disabled'} onclick="${last ? 'sDone=true;S.pending=null' : 'sStep++'};save();render();scrollTo(0,0)">Continue</button></div>`;
+}
+function buildingScreen() {
+  return `<div class="building"><h1>Building your plan</h1>${['Goals & focus', 'Schedule & duration', 'Equipment', 'Experience & safety'].map((l, i) => `<div class="lb"><span>${l}</span><div class="bar"><div style="animation-delay:${i * .2}s"></div></div></div>`).join('')}
+    <p class="mute center">Matching your answers, equipment and time to a plan.</p></div>`;
+}
 screens.Generate = () => {
   const p = P(), g = S.gyms[0];
-  if (p.branch === undefined) return askHere('branch');
-  if (!p.branchConfirmed) return `<h1>Before your first workout</h1><div class="card"><h2>Which Anytime Fitness branch do you attend?</h2>
-    <p>${has(p.branch) ? `Saved: <b>${esc(p.branch)}</b>. Is that exactly right?` : 'No branch saved yet.'}</p>
-    ${has(p.branch) ? `<button onclick="P().branchConfirmed=true;save();render()">Yes, that's my branch</button>` : ''}
-    <button class="sec mt" onclick="editAnswer('branch','Generate')">${has(p.branch) ? 'Change branch' : 'Enter branch'}</button>
-    ${!has(p.branch) ? `<button class="link mt" onclick="P().branchConfirmed=true;save();render()">Continue without a branch</button>` : ''}</div>`;
-  if (!p.daysConfirmed) return `<h1>Before your first workout</h1><div class="card"><h2>How many days can you train?</h2>
-    <p>${Array.isArray(p.days) ? `Saved: <b>${p.days.join(', ')}</b> (${p.days.length} days a week). Correct?` : 'No training days saved yet.'}</p>
-    ${Array.isArray(p.days) ? `<button onclick="P().daysConfirmed=true;save();render()">Yes</button>` : ''}
-    <button class="sec mt" onclick="editAnswer('days','Generate')">${Array.isArray(p.days) ? 'Change days' : 'Choose days'}</button></div>`;
-  if (!p.split || p.splitDays !== p.days.length) { const n = p.days.length, rec = defaultSplit(n);
-    return `<h1>How should your week be split?</h1><div class="card"><p class="mute">You train ${n} day${n === 1 ? '' : 's'} a week. Every session covers each body part with 2–3 exercises: a main lift for the whole muscle, plus one to finish it off.</p>
-      ${Object.entries(SPLITS).map(([k, v]) => `<button class="${k === rec ? '' : 'sec'} mt" onclick="P().split='${k}';P().splitDays=${n};S.pending=null;save();render()">${v.label}${k === rec ? ' (recommended)' : ''}<br><span style="font-weight:400;font-size:14px">${k === 'ul' ? (n === 2 ? 'Day 1 full upper body: chest, back, shoulders, arms. Day 2 legs.' : 'Alternate upper and lower days.') : 'Each session hits legs, chest, back and shoulders.'}</span></button>`).join('')}</div>`; }
-  for (const k of ['experience', 'equipLike', 'equipAvoid', 'clinician']) if (p[k] === undefined) return askHere(k);
+  if (!sDone && !S.pending) return setupScreen();
+  for (const k of ['equipLike', 'equipAvoid', 'clinician']) if (p[k] === undefined) return askHere(k);
   if (!g.confirmedAt) { S.gymId = g.id; return inventoryCheck(g, 'Generate'); }
+  if (!building) { building = Date.now(); setTimeout(() => cur === 'Generate' && render(), 1600); }
+  if (Date.now() - building < 1500) return buildingScreen();
   if (!S.pending || S.pending.kind !== 'training') generatePlan();
   return reviewPlan();
 };
@@ -306,7 +348,7 @@ function toggleSet(i, j) {
     const w = {id: uid(), date: S.active.date, session: S.active.id, gymId: S.active.gymId, exercise: it.ex, reps: s.reps, kg: s.kg, note: it.note || ''};
     S.workouts.push(w); s.done = true; s.logId = w.id;
     const nx = S.active.items[i + 1];
-    if (S.settings.autoRest && !(it.ss === 'a' && nx?.ss === 'b' && nx.sets.some(x => !x.done))) startTimer(restOf(it.ex), it.ex);
+    if (S.settings.autoRest && it.ex !== FINISHER && !(it.ss === 'a' && nx?.ss === 'b' && nx.sets.some(x => !x.done))) startTimer(restOf(it.ex), it.ex);
   }
   save(); render();
 }
@@ -354,61 +396,89 @@ function tick() {
 // ---------- Training screen ----------
 screens.Training = () => {
   if (S.active) return activeWorkout();
-  const tr = todaysRoutine();
-  return `<h1 class="xl">Training</h1>${seg([['Routines', "go('Training')"], ['Planner', "go('Planner')"], ['Gyms', "go('Gyms')"]], 'Routines')}<p class="mute">${P().session} min workouts, plus rests${Array.isArray(P().days) ? ' · ' + P().days.join(', ') : ''}</p>
+  return `<h1 class="xl">Training</h1>${seg([['Routines', "go('Training')"], ['Planner', "go('Planner')"], ['Gyms', "go('Gyms')"]], 'Routines')}
   ${latestGuidance() || has(P().clinician) ? guidanceBlock() : ''}
   <div class="gymbar"><span>📍</span><select onchange="S.gymId=+this.value;save();render()" aria-label="Gym">${S.gyms.map(x => `<option value="${x.id}" ${x.id == gym().id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><button class="link" style="width:auto" onclick="go('Gyms')">Edit</button></div>
   ${S.routines.some(r => r.generated && r.items.some(i => !equipOk(gym(), i.ex))) ? `<div class="note">Some plan exercises need equipment ${esc(gym().name)} doesn't have. <button class="mt" onclick="adaptPlanToGym()">Swap them for this gym</button></div>` : ''}
-  ${planCards(tr)}
+  ${planCards(todaysRoutine())}
   <button class="link mt" onclick="progTab='Training';go('Progress')">See progress →</button>`;
 };
 const est1RM = r => r ? n1(r.kg * (1 + r.reps / 30)) : null; // Epley, from best logged set
 const rbtn = (icon, label, act) => `<button class="rnd" onclick="${act}" aria-label="${label}">${ic(IC[icon])}</button>`;
+IC.x = '<path d="M6 6l12 12M18 6L6 18"/>';
+const DB_ICON = '<svg class="exi" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12"/></svg>';
+let wkMenu = false;
+function setRest(ex) { const v = prompt(`Rest between sets for ${ex} (seconds)`, restOf(ex)); if (v !== null && v.trim() !== '' && +v >= 0) { S.rest[ex] = +v; save(); render(); } }
+function delSet(i) { const ss = S.active.items[i].sets; if (ss.length < 2) return; const s = ss.pop(); if (s.logId) S.workouts = S.workouts.filter(w => w.id != s.logId); save(); render(); }
+function addSuperset(i) {
+  const a = S.active.items[i], b = S.active.items[i + 1]; wkMenu = false;
+  if (!b) return alert('Add another exercise after this one first.');
+  if (a.ss || b.ss) return alert('One of these is already in a superset.');
+  a.ss = 'a'; b.ss = 'b'; save(); render();
+}
+function openSwapSheet(i) {
+  const ex = S.active.items[i].ex, alts = alternatives(ex);
+  sheet.hidden = false;
+  sheet.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Swap exercise"><div class="sec-h"><button class="link" style="width:auto" onclick="closeSheet()">Cancel</button><b>Swap</b><span style="width:60px"></span></div>
+    <div class="swl on">${DB_ICON}<b>${esc(ex)}</b></div>
+    ${alts.length ? alts.map(x => `<button class="swl" onclick="closeSheet();swap(${i},${js(x)})">${DB_ICON}<span>${esc(x)}${prefTag(x)}</span>${ic(IC.swap)}</button>`).join('') : '<p class="mute">No alternative with confirmed equipment at this gym. Mark equipment as available under Gyms.</p>'}</div>`;
+}
 function activeWorkout() {
   const a = S.active, curIdx = ssNext(a, a.items.findIndex(it => it.sets.some(s => !s.done))), mins = Math.round((Date.now() - a.started) / 60000);
   const ci = curIdx < 0 ? a.items.length - 1 : curIdx, cj = curIdx < 0 ? -1 : a.items[curIdx].sets.findIndex(s => !s.done), cex = a.items[ci]?.ex;
-  return `<div class="wtop">${rbtn('back', 'Back to Today', "go('Today')")}<span></span>${rbtn('stats', 'Progress and best lifts', "go('Progress')")}${cex ? rbtn('swap', 'Equipment busy, show swaps', `busyFor=busyFor===${ci}?null:${ci};render()`) : ''}${rbtn('more', 'Save as reusable workout', 'saveAsRoutine()')}</div>
+  return `<div class="wtop">${rbtn('x', 'Finish workout', 'finishWorkout()')}<span></span>${rbtn('stats', 'Progress and best lifts', "go('Progress')")}${cex ? rbtn('swap', 'Swap exercise', `openSwapSheet(${ci})`) : ''}${rbtn('more', 'More options', 'wkMenu=!wkMenu;render()')}</div>
+  ${wkMenu ? `<div class="wmenu card">${cex ? `<button class="link" onclick="addSuperset(${ci})">Add superset with next exercise</button>` : ''}<button class="link" onclick="wkMenu=false;go('Gyms')">Edit available weights</button>${cex ? `<button class="link" onclick="wkMenu=false;render();document.getElementById('note${ci}').focus()">Notes</button>` : ''}<button class="link" onclick="wkMenu=false;saveAsRoutine()">Save as reusable workout</button></div>` : ''}
   <div class="wprog" aria-label="Exercise ${ci + 1} of ${a.items.length}">${a.items.map((_, i) => `<i class="${i < ci || curIdx < 0 ? 'done' : i === ci ? 'now' : ''}"></i>`).join('')}</div>
   <h1>${esc(a.routine)}</h1><p class="mute">${esc(gymById(a.gymId)?.name || '')} · ${mins} of ${P().session} min</p>
   ${a.items.map((it, i) => {
-    const lt = lastTime(it.ex), pr = S.records[it.ex], alts = busyFor === i ? alternatives(it.ex) : null, rm = est1RM(pr);
-    return `<div class="card ${i === curIdx ? 'cur' : ''}"><div class="exh"><h2>${i + 1}. ${esc(it.ex)}${prefTag(it.ex)}${it.optional ? '<span class="tag">optional</span>' : ''}</h2>${rm ? `<span class="rm">est. 1RM: ${gb(rm)}</span>` : ''}</div>
-    <div class="mute">${it.ss ? `<span class="tag">superset ${it.ss === 'a' ? '1/2: then go straight to the next exercise' : '2/2: rest after this'}</span><br>` : ''}${it.target ? 'Target: ' + it.sets.length + ' × ' + esc(it.target) + ' · ' : ''}Last time: ${lt ? lt.map(w => `${esc(w.reps || '?')}×${esc(w.kg || 0)}`).join(', ') + ' kg' : '—'}<br>Best: ${pr ? `${pr.kg} kg × ${pr.reps} (${ukDate(pr.date)})` : '—'}</div>
-    ${it.sets.map((s, j) => `<div class="wset ${s.done ? 'done' : ''} ${i === curIdx && j === cj ? 'now' : ''}"><span class="badge ${s.warmup ? 'w' : ''}">${s.warmup ? 'W' : j + 1}</span>
-      <label class="num"><input type="number" inputmode="decimal" step="0.5" value="${esc(s.kg)}" onchange="setVal(${i},${j},'kg',this.value)" aria-label="kg, set ${j + 1}"><small>kg</small></label>
-      <label class="num"><input type="number" inputmode="numeric" value="${esc(s.reps)}" onchange="setVal(${i},${j},'reps',this.value)" aria-label="Reps, set ${j + 1}"><small>reps</small></label>
-      <button class="chk" onclick="toggleSet(${i},${j})" aria-label="Set ${j + 1} complete" aria-pressed="${!!s.done}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></button></div>`).join('')}
-    <button class="addrow" onclick="addSet(${i})" aria-label="Add set">+</button>
+    const lt = lastTime(it.ex), pr = S.records[it.ex], rm = est1RM(pr), now = i === curIdx, perDb = libOf(it.ex)[2].includes('Dumbbells'), r = restOf(it.ex);
+    return `<div class="card ${now ? 'cur' : ''}"><h2>${i + 1}. ${esc(it.ex)}${prefTag(it.ex)}${it.optional ? '<span class="tag">optional</span>' : ''}${it.ss ? `<span class="tag">superset ${it.ss === 'a' ? '1/2' : '2/2'}</span>` : ''}</h2>
+    <div class="wchips"><button class="chip" onclick="setRest(${js(it.ex)})" aria-label="Change rest">${ic(IC.clock)} Rest ${String(Math.floor(r / 60)).padStart(2, '0')}:${String(r % 60).padStart(2, '0')}</button>${rm ? `<span class="chip">1RM: ${gb(rm)}</span>` : ''}<button class="chip" onclick="openSwapSheet(${i})">${ic(IC.swap)} Swap</button></div>
+    <div class="wset whead"><span>Set</span><span>kg</span><span>Reps</span><span></span></div>
+    ${it.sets.map((s, j) => { const cur = now && j === cj; return `<div class="wset ${s.done ? 'done' : ''} ${cur ? 'now' : ''}"><span class="badge ${s.warmup ? 'w' : ''}">${s.warmup ? 'W' : j + 1}</span>
+      <label class="num"><input type="number" inputmode="decimal" step="0.5" value="${esc(s.kg)}" onchange="setVal(${i},${j},'kg',this.value)" aria-label="kg, set ${j + 1}">${cur && perDb ? '<small class="cap">Per DB</small>' : ''}</label>
+      <label class="num"><input type="number" inputmode="numeric" value="${esc(s.reps)}" onchange="setVal(${i},${j},'reps',this.value)" aria-label="Reps, set ${j + 1}">${cur && it.target ? `<small class="cap">Target ${esc(it.target)}</small>` : ''}</label>
+      <button class="chk" onclick="toggleSet(${i},${j})" aria-label="Set ${j + 1} complete" aria-pressed="${!!s.done}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></button></div>`; }).join('')}
+    <div class="wset waddr"><button class="addrow" onclick="addSet(${i})" aria-label="Add set">+</button><span></span><span></span><button class="link" onclick="delSet(${i})" ${it.sets.length < 2 ? 'disabled' : ''}>Delete</button></div>
+    <details class="tgt"><summary>Target reps ${esc(it.target || '—')} · ${isCompound(it.ex) ? 'Primary' : 'Accessory'}</summary>
+      <p class="mute">Last time: ${lt ? lt.map(w => `${esc(w.reps || '?')}×${esc(w.kg || 0)}`).join(', ') + ' kg' : '—'}<br>Best: ${pr ? `${pr.kg} kg × ${pr.reps} (${ukDate(pr.date)})` : '—'}${it.ss ? `<br>${it.ss === 'a' ? 'Superset: go straight to the next exercise.' : 'Superset: rest after this one.'}` : ''}</p></details>
     <input id="note${i}" placeholder="Notes (e.g. seat 4, felt easy)" value="${esc(it.note)}" onchange="setNote(${i},this.value)" class="mt">
-    <div class="grid2 mt"><button class="sec" onclick="addSet(${i})">+ Set</button><button class="sec" onclick="busyFor=busyFor===${i}?null:${i};render()">Equipment busy</button></div>
-    ${alts ? `<div class="mt">${alts.length ? alts.map(x => `<button class="sec mt" onclick="swap(${i},${js(x)})">Swap to ${esc(x)}${prefTag(x)}</button>`).join('') : '<p class="mute">No alternative with confirmed equipment at this gym. Mark equipment as available under Gyms.</p>'}</div>` : ''}
-    <div class="row mt" style="align-items:center"><span class="mute" style="flex:2">Rest (s)</span><input type="number" inputmode="numeric" value="${restOf(it.ex)}" onchange="S.rest[${js(it.ex)}]=+this.value;save()" style="flex:1" aria-label="Rest seconds"><button class="sec" style="flex:1" onclick="unlockAudio();startTimer(restOf(${js(it.ex)}),${js(it.ex)})">Start rest</button></div>
     <button class="link mt" onclick="removeItem(${i})">${it.optional ? 'Skip this optional exercise' : 'Remove exercise'}</button></div>`;
   }).join('')}
   <select onchange="addEx(this.value)" aria-label="Add exercise">${exOptions()}</select>
-  <button class="sec mt" onclick="saveAsRoutine()">Save as reusable workout</button>
   <button class="mt" onclick="finishWorkout()">Finish workout</button>
   <div class="wbar">${cex ? `<button class="sq sec" onclick="document.getElementById('note${ci}').focus()" aria-label="Notes">${ic(IC.edit)}</button><button class="sq sec" onclick="unlockAudio();startTimer(restOf(${js(cex)}),${js(cex)})" aria-label="Start rest timer">${ic(IC.clock)}</button>` : ''}
     <button class="pill" ${cj < 0 ? 'disabled' : `onclick="S.settings.autoRest||startTimer(restOf(${js(cex)}),${js(cex)});toggleSet(${ci},${cj})"`}>${cj < 0 ? 'All sets logged' : 'Log set'}</button></div>`;
 }
 
-// ---------- Jefit-style plan view: today's workout ready to go, the week's plan, and a manual section ----------
-const exLine = (i, rid, k) => { const s = typeof i === 'string' ? {ex: i} : i; return `<li class="exl"><span class="exn">${esc(s.ex)}${s.compound ? ' <span class="tag">compound</span>' : ''}${s.ss ? ` <span class="tag">superset ${s.ss === 'a' ? '1/2' : '2/2'}</span>` : ''}${s.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="mute">${s.sets || 3} sets × ${esc(s.reps || '8–12')} reps · rest ${S.rest[s.ex] ?? s.rest ?? restOf(s.ex)} s</span></span>${rid != null ? `<button class="link" style="width:auto" onclick="swapFor=swapFor==='${rid}:${k}'?null:'${rid}:${k}';render()" aria-label="Swap ${esc(s.ex)}">Swap</button>` : ''}</li>${swapFor === `${rid}:${k}` ? swapPicker(s.ex, rid, k) : ''}`; };
-let openPlan = null;
+// ---------- plan view: header with week progress, Overview timeline | Day details, floating Start, manual section ----------
+const exLine = (i, rid, k) => { const s = typeof i === 'string' ? {ex: i} : i; return `<li class="exl">${DB_ICON}<span class="exn"><b>${esc(s.ex)}</b>${s.ss ? ` <span class="tag">superset ${s.ss === 'a' ? '1/2' : '2/2'}</span>` : ''}${s.optional ? ' <span class="tag">optional</span>' : ''}<br><span class="mute">${s.ex === FINISHER ? esc(s.reps) : `${s.sets || 3} × ${esc(s.reps || '8–12')} reps`}</span></span>${rid != null ? `<button class="link" style="width:auto" onclick="swapFor=swapFor==='${rid}:${k}'?null:'${rid}:${k}';render()" aria-label="Swap ${esc(s.ex)}">Swap</button>` : ''}</li>${swapFor === `${rid}:${k}` ? swapPicker(s.ex, rid, k) : ''}`; };
+let planTab = 'Overview', planSel = null, planMenu = null;
+function addPlanEx(rid, ex) { const r = S.routines.find(x => x.id == rid); if (!r || !ex) return; r.items.push({ex, sets: 3, reps: '8–12', rest: restOf(ex), alt: alternatives(ex)[0] || '', optional: false}); save(); render(); }
+function swapDay(k) { // swap weekdays with the next day in the plan
+  const gen = S.routines.filter(r => r.generated), a = gen[k].id, b = gen[(k + 1) % gen.length].id; planMenu = null;
+  for (const d in S.week.days) S.week.days[d] = S.week.days[d] == a ? b : S.week.days[d] == b ? a : S.week.days[d];
+  save(); render();
+}
 function planCards(tr) {
   const gen = S.routines.filter(r => r.generated), dayOf = r => DAYS.filter(d => S.week.days[d] == r.id).join(', ');
-  const hero = tr ? `<div class="card hero"><div class="mute">Today's workout${planTag()}</div><h2>${esc(tr.name)}</h2><p class="mute">${tr.items.length} exercises · ${timeLabel(tr.items)}</p>
-      <ul>${tr.items.map((x, k) => exLine(x, tr.id, k)).join('')}</ul><button class="mt" onclick="startWorkout(${tr.id})">Start workout</button></div>`
-    : gen.length ? `<div class="card hero"><div class="mute">Today</div><h2>Rest day</h2><p class="mute">Nothing planned. Fancy a session anyway? Pick one below.</p></div>`
-    : `<div class="card hero"><h2>Get a plan built for you</h2><p class="mute">Answer a few quick questions and I'll build your week: exercises, sets, reps and rest, timed to fit your session and your gym's equipment.</p><button class="mt" onclick="go('Generate')">Build my plan</button></div>`;
-  const week = gen.length ? `<h3>Your plan</h3>${gen.map(r => `<div class="card"><div class="sec-h"><div><b>${esc(r.name)}</b><div class="mute">${dayOf(r) || 'Not on a day'} · ${r.items.length} exercises · ${timeLabel(r.items)}</div></div>
-      <button class="link" style="width:auto" onclick="openPlan=openPlan===${r.id}?null:${r.id};render()">${openPlan === r.id ? 'Hide' : 'View'}</button></div>
-      ${openPlan === r.id ? `<ul>${r.items.map((x, k) => exLine(x, r.id, k)).join('')}</ul>` : ''}<div class="grid2 mt"><button onclick="startWorkout(${r.id})">Start</button><button class="sec" onclick="editingRoutine=${r.id};go('Routine')">Edit</button></div></div>`).join('')}
-      <button class="sec" onclick="rebuildPlan()">Rebuild my plan</button>` : '';
-  const manual = `<h3>Manual</h3><div class="card"><p class="mute">Build your own, or just start and add exercises as you go.</p>
+  const manual = `<details class="more mt"><summary>Manual</summary><div class="card mt"><p class="mute">Build your own, or just start and add exercises as you go.</p>
       ${act3([['Empty workout', 'plus', 'startWorkout()'], ['New routine', 'edit', "const r={id:uid(),name:'New routine',items:[]};S.routines.push(r);editingRoutine=r.id;save();go('Routine')"], ['Import', 'more', "go('RoutineImport')"]])}
-      ${S.routines.filter(r => !r.generated).map(r => `<div class="sec-h"><span>${esc(r.name)}<br><span class="mute">${r.items.length} exercises · ~${estMinutes(r.items)} min</span></span><span style="white-space:nowrap"><button class="pill" onclick="startWorkout(${r.id})">Start</button> <button class="link" style="width:auto" onclick="editingRoutine=${r.id};go('Routine')">Edit</button></span></div>`).join('')}</div>`;
-  return hero + week + manual;
+      ${S.routines.filter(r => !r.generated).map(r => `<div class="sec-h"><span>${esc(r.name)}<br><span class="mute">${r.items.length} exercises · ~${estMinutes(r.items)} min</span></span><span style="white-space:nowrap"><button class="pill" onclick="startWorkout(${r.id})">Start</button> <button class="link" style="width:auto" onclick="editingRoutine=${r.id};go('Routine')">Edit</button></span></div>`).join('')}</div></details>`;
+  if (!gen.length) return `<div class="card hero"><h2>Get a plan built for you</h2><p class="mute">Answer a few quick questions and I'll build your week: exercises, sets, reps and rest, timed to fit your session and your gym's equipment.</p><button class="mt" onclick="startSetup()">Build my plan</button></div>${manual}`;
+  if (planSel == null || !gen[planSel]) planSel = Math.max(0, gen.indexOf(tr));
+  const sel = gen[planSel], w = Math.min(planWeek(), S.plan?.weeks || 0);
+  const head = `<div class="card hero"><div class="sec-h"><h2>Your plan</h2><button class="pill" onclick="rebuildPlan()">${ic(IC.swap)} Rebuild</button></div>
+    ${S.plan?.weeks ? `<div class="wprog">${Array.from({length: S.plan.weeks}, (_, i) => `<i class="${i + 1 < w ? 'done' : i + 1 === w ? 'now' : ''}"></i>`).join('')}</div><p class="mute">Week ${w} of ${S.plan.weeks}${tr ? ` · today: ${esc(tr.name)}` : ' · rest day today'}</p>` : ''}</div>`;
+  const tabs = `<div class="utabs" role="tablist">${['Overview', 'Day details'].map(t => `<button role="tab" class="${planTab === t ? 'on' : ''}" aria-selected="${planTab === t}" onclick="planTab='${t}';render()">${t}</button>`).join('')}</div>`;
+  const overview = `<div class="tl">${gen.map((r, k) => `<div class="tli${k === planSel ? ' on' : ''}"><i></i><div class="card" onclick="planSel=${k};planTab='Day details';render()">
+      <div class="sec-h"><div><span class="mute">Day ${k + 1}${dayOf(r) ? ' · ' + dayOf(r) : ''}</span><br><b>${esc(r.name)}</b><br><span class="mute">Est. ${liftMinutes(r.items)} min, ${r.items.length} exercises · ~${estMinutes(r.items)} min with rests</span></div>
+      <button class="link" style="width:auto" onclick="event.stopPropagation();planMenu=planMenu===${k}?null:${k};render()" aria-label="Options for ${esc(r.name)}">${ic(IC.more)}</button></div>
+      ${planMenu === k ? `<div class="grid3 mt" onclick="event.stopPropagation()"><button onclick="startWorkout(${r.id})">Start</button><button class="sec" onclick="editingRoutine=${r.id};go('Routine')">Edit</button><button class="sec" onclick="swapDay(${k})" ${gen.length < 2 ? 'disabled' : ''}>Swap day</button></div>` : ''}</div></div>`).join('')}</div>`;
+  const details = `<div class="chips">${gen.map((r, k) => `<button class="chip${k === planSel ? ' on' : ''}" onclick="planSel=${k};render()">Day ${k + 1} · ${esc(r.name)}</button>`).join('')}</div>
+    <div class="card"><ul>${sel.items.map((x, k) => exLine(x, sel.id, k)).join('')}
+      <li class="exl"><span class="exi plus">${ic(IC.plus)}</span><select onchange="addPlanEx(${sel.id},this.value)" aria-label="Add exercise">${exOptions().replace('Choose exercise…', 'Add exercise')}</select></li></ul></div>`;
+  return head + tabs + (planTab === 'Overview' ? overview : details) + manual + `<button class="startfab" onclick="startWorkout(${sel.id})">▶ Start workout</button>`;
 }
 
 // ---------- Progress → Training: workouts per week, best lifts, per-exercise trend ----------
@@ -433,7 +503,7 @@ const planTag = () => S.plan?.start ? ` · week ${Math.min(planWeek(), S.plan.we
 function rebuildPlan() {
   const w = planWeek();
   if (S.plan?.start && w < 4 && !confirm(`You're in week ${w} of ${S.plan.weeks}. Sticking with one plan for at least 4 weeks makes your progress clear. Rebuild anyway?`)) return;
-  go('Generate');
+  startSetup();
 }
 
 // In a superset, once the 'a' exercise is ahead of its partner, the partner is next.
