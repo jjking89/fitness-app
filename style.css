@@ -279,3 +279,19 @@ button.swl span{flex:1}div.swl{display:flex;align-items:center;gap:var(--s3);pad
 .sheet{max-height:80vh;overflow-y:auto}
 .card>.sec-h:first-child{margin-top:0}
 body:has(.startfab){padding-bottom:calc(170px + env(safe-area-inset-bottom))}
+
+/* compact entries inside a meal card: collapsed by default, one line each */
+details.entries{width:100%;margin-top:var(--s2);border-top:1px solid var(--line);padding-top:var(--s1)}
+details.entries>summary{list-style:none;cursor:pointer;font-size:14px;color:var(--acc);min-height:32px;display:flex;align-items:center}
+details.entries>summary::-webkit-details-marker{display:none}
+details.entries[open]>summary{color:var(--mute)}
+li.ent{min-height:40px;padding:2px 0;gap:4px}
+.ent-main{flex:1;display:flex;justify-content:space-between;align-items:center;gap:8px;background:none;color:var(--ink);min-height:40px;padding:4px 0;font-weight:400;font-size:15px;text-align:left;width:auto}
+.ent-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ent-k{color:var(--mute);flex:none;font-variant-numeric:tabular-nums}
+.ent-x{min-width:36px!important;min-height:36px!important;padding:0!important;font-size:15px}
+
+.mb{min-width:0}
+.one{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ent-main,.ent-main:active{background:none!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.ent-x{background:none!important;border:0!important;box-shadow:none!important;color:var(--mute)!important}
