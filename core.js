@@ -145,7 +145,10 @@ const seg = (tabs, on) => `<div class="seg" role="tablist">${tabs.map(([l, act])
 const act3 = list => `<div class="act3">${list.map(([l, icon, act]) => `<button class="sec" onclick="${act}">${ic(IC[icon])}<span>${l}</span></button>`).join('')}</div>`;
 screens.Interview = () => {
   const i = ivSingle ? QUESTIONS.findIndex(q => q[0] === ivSingle) : S.iv;
-  if (i >= QUESTIONS.length) return `<h1>All done</h1><div class="card"><p>Your profile is saved on this device. Change any single answer from Profile.</p><button onclick="go('Today')">Go to Today</button><button class="sec mt" onclick="go('Profile')">View profile</button></div>`;
+  if (i >= QUESTIONS.length) { const gaps = QUESTIONS.filter(([k]) => !has(P()[k]));
+    return `<h1>All done</h1><div class="card"><p>Your profile is saved on this device.</p>
+    ${gaps.length ? `<h2>Skipped or not sure (${gaps.length})</h2><p class="mute">Answer any you missed now, or leave them.</p><ul>${gaps.map(([k, q]) => `<li><span>${q}</span><button onclick="editAnswer('${k}','Interview')">Answer</button></li>`).join('')}</ul>` : '<p class="mute">Every question answered.</p>'}
+    <button class="mt" onclick="go('Today')">Finish</button><button class="sec mt" onclick="redoSetup()">Go through all questions again</button></div>`; }
   const q = QUESTIONS[i];
   return `<h1>${ivSingle ? 'Update answer' : 'Profile setup'}</h1><p class="mute">${ivSingle ? '' : `Question ${i + 1} of ${QUESTIONS.length} · 45-minute strength sessions at Anytime Fitness`}</p>
   <div class="card"><h2>${q[1]}</h2>${ivInput(q)}
@@ -156,7 +159,8 @@ screens.Interview = () => {
 };
 screens.Profile = () => `<h1>Profile</h1><p class="mute">Tap an answer to change just that one.</p>
   <div class="card"><ul>${QUESTIONS.map(([k, q]) => `<li onclick="editAnswer('${k}')" style="cursor:pointer"><span>${q}<br><b>${showAnswer(P()[k])}</b></span><span class="mute">Edit</span></li>`).join('')}</ul></div>
-  ${!P().done ? `<button onclick="go('Interview')">Continue setup</button>` : ''}`;
+  ${!P().done ? `<button onclick="go('Interview')">Continue setup</button>` : `<button class="sec" onclick="redoSetup()">Go through all questions again</button>`}`;
+function redoSetup() { S.iv = 0; ivSingle = null; save(); go('Interview'); } // answers stay filled in; just step through them
 
 // ---------- generic edit for any logged entry ----------
 let editing = null;
