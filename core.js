@@ -38,7 +38,7 @@ const blank = () => ({
   gyms: [], gymId: null, prefs: {}, rest: {}, week: {days: {}}, active: null, timer: null, records: {},
   mealPlan: {slots: {}, ticks: {}}, pending: null, coach: {history: [], tdee: null}, foods: [], barcodes: {}, done: {},
   health: {notes: [], appts: [], symptoms: [], doses: [], med: {enabled: false, name: '', dose: '', start: ''}, constraints: {avoid: '', hr: '', intensity: ''}},
-  settings: {autoRest: true, sound: true, vibrate: true, reminder: false, speechConsent: false, autoTargets: null, weighDay: 'Mon'},
+  settings: {autoRest: true, sound: true, vibrate: true, reminder: false, speechConsent: false, autoTargets: null, weighDay: 'Mon', menuUpdates: true},
 });
 let S;
 function load() { try { S = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY)) || {}); } catch { S = blank(); } migrate(); }
