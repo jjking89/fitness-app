@@ -1,156 +1,59 @@
-// ===== Supplements: simple list, tick when taken; taken servings count in the day's nutrition (dayTotals). =====
-// Add by barcode (Open Food/Products/Beauty Facts → Claude web search → label photo), label photo (Claude), or typing.
+// ===== Supplements: a simple list of common supplements with a scroll wheel for the amount =====
+// What you take counts towards the day's totals (fibre, protein, calories) everywhere: Home, Food, weekly review, targets.
+// Data: S.svMine = your list (keys), S.svLog = [{id, date, k, amt}] (one entry per supplement per day).
+const SV_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" class="sv-ico"><rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-35 12 12)"/><path d="M12 6.6 15.6 12.3"/></svg>';
+// per = nutrients per one unit (per g, per tablet …); typical UK product values
+const SV_LIB = [
+  {k: 'fibre', name: 'Soluble fibre', unit: 'g', step: 1, max: 30, def: 5, per: {fibre: 0.9, kcal: 2}},
+  {k: 'psyllium', name: 'Psyllium husk', unit: 'g', step: 1, max: 30, def: 6, per: {fibre: 0.8, kcal: 2, carbs: 0.1}},
+  {k: 'inulin', name: 'Inulin', unit: 'g', step: 1, max: 20, def: 5, per: {fibre: 0.9, kcal: 2}},
+  {k: 'd3', name: 'Vitamin D3', unit: 'tablet', step: 1, max: 4, def: 1},
+  {k: 'creatine', name: 'Creatine', unit: 'g', step: 1, max: 20, def: 5},
+  {k: 'omega', name: 'Omega-3', unit: 'capsule', step: 1, max: 6, def: 2, per: {kcal: 10, fat: 1}},
+  {k: 'whey', name: 'Whey protein', unit: 'g', step: 5, max: 90, def: 30, per: {protein: 0.8, kcal: 4, carbs: 0.08, fat: 0.05}},
+  {k: 'mag', name: 'Magnesium', unit: 'tablet', step: 1, max: 4, def: 1},
+  {k: 'multi', name: 'Multivitamin', unit: 'tablet', step: 1, max: 2, def: 1},
+  {k: 'elec', name: 'Electrolytes', unit: 'sachet', step: 1, max: 4, def: 1, per: {kcal: 10}},
+  {k: 'b12', name: 'Vitamin B12', unit: 'tablet', step: 1, max: 2, def: 1},
+  {k: 'zinc', name: 'Zinc', unit: 'tablet', step: 1, max: 2, def: 1},
+  {k: 'iron', name: 'Iron', unit: 'tablet', step: 1, max: 2, def: 1},
+  {k: 'collagen', name: 'Collagen', unit: 'g', step: 1, max: 20, def: 10, per: {protein: 0.9, kcal: 3.6}},
+];
+const SV_KEYS = ['kcal', 'protein', 'carbs', 'fat', 'fibre'];
+const svLib = k => SV_LIB.find(s => s.k === k);
+const svInit = () => { S.svMine ||= ['fibre', 'psyllium', 'd3', 'creatine', 'omega']; S.svLog ||= []; };
+const svAmt = (s, v) => `${v} ${s.unit}${v !== 1 && s.unit !== 'g' ? 's' : ''}`;
+const svGot = (k, d = today()) => S.svLog?.find(l => l.k === k && l.date === d);
+function svDayTotals(d) { const t = {}; for (const l of (S.svLog || []).filter(l => l.date === d)) { const s = svLib(l.k); for (const n of SV_KEYS) t[n] = (t[n] || 0) + (s?.per?.[n] || 0) * l.amt; } return t; }
+const svHint = (s, v) => s.per?.fibre ? `≈ ${n1(s.per.fibre * v)} g fibre` : s.per?.protein ? `≈ ${Math.round(s.per.protein * v)} g protein` : svAmt(s, v);
+
+// supplements count in the day's totals everywhere
+const _svDayTotals = dayTotals;
+dayTotals = function (d = today()) { const t = _svDayTotals(d), x = svDayTotals(d); for (const n of SV_KEYS) t[n] = n1((t[n] || 0) + (x[n] || 0)); return t; };
+
+let svPick = null, svVal = 0, svEdit = false;
+function svSave(k, v) { svInit(); S.svLog = S.svLog.filter(l => !(l.k === k && l.date === today())); if (v > 0) S.svLog.push({id: uid(), date: today(), k, amt: v}); svPick = null; save(); render(); }
+screens.Supplements = () => { svInit(); const tot = svDayTotals(today()), taken = S.svMine.filter(k => svGot(k)).length;
+  return `<div class="sec-h"><h1 class="xl">Supplements</h1><button class="pill" onclick="svEdit=!svEdit;render()">${svEdit ? 'Done' : 'Edit'}</button></div>
+  <div class="card sv-sum"><div><span class="big">${n1(tot.fibre || 0)}</span> g<div class="mute">fibre</div></div><div><span class="big">${Math.round(tot.protein || 0)}</span> g<div class="mute">protein</div></div><div><span class="big">${taken}/${S.svMine.length}</span><div class="mute">taken today</div></div></div>
+  <div class="card">${S.svMine.length ? `<ul class="sv-list">${S.svMine.map(k => { const s = svLib(k); if (!s) return ''; const g = svGot(k);
+    return `<li><span class="sv-badge ${g ? 'on' : ''}">${SV_ICON}</span><span class="sv-n"><b>${s.name}</b><br><span class="mute">${g ? svAmt(s, g.amt) + ' today' + (s.per?.fibre || s.per?.protein ? ' · ' + svHint(s, g.amt) : '') : 'Not taken'}</span></span>
+      ${svEdit ? `<button class="rnd sv-del" onclick="S.svMine=S.svMine.filter(x=>x!=='${k}');save();render()" aria-label="Remove ${s.name}">✕</button>` : `<button class="sv-amt ${g ? 'on' : ''}" onclick="svPick='${k}';svVal=${g ? g.amt : s.def};render()">${g ? svAmt(s, g.amt) : '+ Add'}</button>`}</li>`; }).join('')}</ul>` : '<p class="mute">Your list is empty. Tap Edit to add supplements.</p>'}</div>
+  ${svEdit ? `<h3>Add to your list</h3><div class="chips">${SV_LIB.filter(s => !S.svMine.includes(s.k)).map(s => `<button class="chip" onclick="S.svMine.push('${s.k}');save();render()">+ ${s.name}</button>`).join('') || '<span class="mute">All added</span>'}</div><p class="mute">Removing one from your list keeps the days you've already taken it.</p>` : '<p class="mute center">Tap an amount to change it. Counts towards your daily fibre and protein.</p>'}
+  ${svPick ? svSheet() : ''}`; };
+function svSheet() { const s = svLib(svPick), vals = []; for (let v = 0; v <= s.max; v += s.step) vals.push(v);
+  return `<div class="sv-back" onclick="if(event.target===this){svPick=null;render()}"><div class="sv-sheet">
+    <div class="sec-h"><b>${s.name}</b><button class="link" style="width:auto" onclick="svPick=null;render()">Cancel</button></div>
+    <div class="sv-wheel" id="svWheel" onscroll="svSnap(this)">${['', '', ...vals, '', ''].map(v => `<div class="sv-opt ${v === svVal ? 'on' : ''}">${v === '' ? '' : svAmt(s, v)}</div>`).join('')}</div>
+    <p class="mute center" id="svHint">${svHint(s, svVal)}</p>
+    <div class="grid2"><button class="sec" onclick="svSave(svPick,0)">Not taken</button><button onclick="svSave(svPick,svVal);toastMsg('Saved')">Save</button></div></div></div>`; }
+function svSnap(el) { clearTimeout(svSnap.t); svSnap.t = setTimeout(() => { const s = svLib(svPick); if (!s) return; const i = Math.round(el.scrollTop / 44); svVal = Math.min(s.max, i * s.step); el.querySelectorAll('.sv-opt').forEach((o, j) => o.classList.toggle('on', j === i + 2)); const h = document.getElementById('svHint'); if (h) h.textContent = svHint(s, svVal); }, 80); }
+const _svRender = render;
+render = function () { _svRender(); const w = document.getElementById('svWheel'); if (w && svPick) { const s = svLib(svPick); w.scrollTop = Math.round(svVal / s.step) * 44; } };
 TAB_OF.Supplements = 'Today';
-const SUP_KEYS = ['kcal', 'protein', 'carbs', 'fat', 'fibre'];
-const SUP_PICKS = [ // [name, serving, kcal, protein, carbs, fat, fibre]
-  ['Psyllium husk', '1 scoop (6 g)', 20, 0, 1, 0, 5], ['Inulin', '5 g', 10, 0, 0, 0, 4.5], ['Whey protein', '30 g', 120, 24, 3, 1.5, 0],
-  ['Creatine', '5 g', 0, 0, 0, 0, 0], ['Vitamin D', '1 tablet', 0, 0, 0, 0, 0], ['Omega-3', '2 capsules', 20, 0, 0, 2, 0],
-  ['Magnesium', '1 tablet', 0, 0, 0, 0, 0], ['Multivitamin', '1 tablet', 0, 0, 0, 0, 0], ['Electrolytes', '1 sachet', 0, 0, 0, 0, 0], ['Pre-workout', '1 scoop', 5, 0, 0, 0, 0]];
-let supDraft = null; // {name, brand, barcode, serving, per, src} shown on the "Is this right?" / Type form
 
-function supInit() { S.supps ||= []; S.suppLog ||= []; }
-const _supMigrate = migrate;
-migrate = function () { _supMigrate(); supInit(); };
-
-// Taken supplements add to the day's totals everywhere (Home/Food cards, fibre bar, weekly review, auto-targets). n stays meal count.
-const _supDayTotals = dayTotals;
-dayTotals = function (d = today()) {
-  const t = _supDayTotals(d); supInit();
-  for (const l of S.suppLog.filter(x => x.date === d)) {
-    const s = S.supps.find(x => x.id == l.suppId); if (!s) continue;
-    for (const k of SUP_KEYS) t[k] = n1(t[k] + (+s.per?.[k] || 0) * (+l.servings || 1));
-  }
-  return t;
-};
-
-const supTaken = id => S.suppLog.some(l => l.date === today() && l.suppId == id);
-const supCaffeine = name => /pre-?workout|caffeine/i.test(name || '');
-const supInfo = s => [s.serving, s.per.fibre ? gb(s.per.fibre) + ' g fibre' : '', s.per.protein ? gb(s.per.protein) + ' g protein' : '', s.per.kcal ? gb(s.per.kcal) + ' kcal' : ''].filter(Boolean).join(' · ');
-function supToggle(id) {
-  supInit();
-  if (supTaken(id)) S.suppLog = S.suppLog.filter(l => !(l.date === today() && l.suppId == id));
-  else S.suppLog.push({id: uid(), date: today(), suppId: id, servings: 1});
-  save(); render();
-}
-const supActive = () => (S.supps || []).filter(s => !s.archived);
-function supRemove(id) {
-  const s = S.supps.find(x => x.id == id); if (!s || !confirm(`Remove ${s.name} from your list? Days you already took it still count.`)) return;
-  s.archived = true; save(); render(); // kept so past totals don't change
-}
-
-screens.Supplements = () => {
-  supInit();
-  if (supDraft) return supForm();
-  const taken = supActive().filter(s => supTaken(s.id)), tot = k => n1(taken.reduce((a, s) => a + (+s.per[k] || 0), 0));
-  return `<div class="mhead"><button class="rnd" onclick="go('Today')" aria-label="Back">‹</button><h1 class="ttl">Supplements</h1><span></span></div>
-  <div class="sup-acts"><button class="sec" onclick="supScan()"><b>▥</b>Scan barcode</button><button class="sec" onclick="supPhoto()"><b>📷</b>Photo label</button><button class="sec" onclick="supType()"><b>⌨</b>Type</button></div>
-  <div class="card"><h2>Today</h2>${supActive().length ? `<ul class="sup-list">${supActive().map(s => `<li><button class="sup-tick ${supTaken(s.id) ? 'on' : ''}" onclick="supToggle(${js(s.id)})" aria-pressed="${supTaken(s.id)}" aria-label="Taken ${esc(s.name)}">✓</button>
-    <span class="sup-txt"><b>${esc(s.name)}</b><br><span class="mute">${esc(supInfo(s))}</span>${supCaffeine(s.name) ? '<br><span class="sup-warn">Contains caffeine. With your heart care, check stimulants with your care team.</span>' : ''}</span>
-    <button class="sup-x" onclick="supRemove(${js(s.id)})" aria-label="Remove ${esc(s.name)}">✕</button></li>`).join('')}</ul>` : '<p class="mute">No supplements yet. Scan, photo the label, or type one.</p>'}</div>
-  <div class="card"><b>From supplements today:</b> Fibre +${gb(tot('fibre'))} g · Protein +${gb(tot('protein'))} g · ${gb(tot('kcal'))} kcal</div>`;
-};
-
-function supForm() {
-  const d = supDraft, v = k => d.per?.[k] ?? '', num = (k, l) => `<label>${l}<input name="${k}" type="number" step="any" min="0" inputmode="decimal" value="${esc(v(k))}"></label>`;
-  return `<div class="mhead"><button class="rnd" onclick="supDraft=null;render()" aria-label="Back">‹</button><h1 class="ttl">${d.src === 'typed' ? 'Add supplement' : 'Is this right?'}</h1><span></span></div>
-  ${d.src === 'typed' ? `<div class="chips">${SUP_PICKS.map((p, i) => `<button type="button" class="chip" onclick="supPick(${i})">${esc(p[0])}</button>`).join('')}</div>` : `<p class="mute">Found via ${esc(d.src)}${d.barcode ? ' · ' + esc(d.barcode) : ''}. Correct anything that's off. Values are per serving.</p>`}
-  <form class="card" onsubmit="event.preventDefault();supSave(this)">
-    <label>Name<input name="name" required value="${esc(d.name)}"></label>
-    <label>Serving<input name="serving" placeholder="e.g. 1 scoop (6 g)" value="${esc(d.serving)}"></label>
-    <div class="grid2">${num('kcal', 'kcal')}${num('protein', 'Protein g')}${num('carbs', 'Carbs g')}${num('fat', 'Fat g')}${num('fibre', 'Fibre g')}</div>
-    ${supCaffeine(d.name) ? '<div class="note">Contains caffeine. With your heart care, check stimulants with your care team.</div>' : ''}
-    <button class="mt">Add supplement</button>
-    ${d.src !== 'typed' ? '<button type="button" class="sec mt" onclick="supPhoto()">Not right? Photo the label</button>' : ''}</form>`;
-}
-function supType() { supDraft = {name: '', brand: '', barcode: '', serving: '', per: {}, src: 'typed'}; go('Supplements'); }
-function supPick(i) { const p = SUP_PICKS[i]; supDraft = {...supDraft, name: p[0], serving: p[1], per: Object.fromEntries(SUP_KEYS.map((k, j) => [k, p[j + 2]]))}; render(); }
-function supSave(f) {
-  supInit(); const x = form(f), d = supDraft;
-  const s = {id: uid(), name: x.name.trim(), brand: d.brand || '', barcode: d.barcode || '', serving: x.serving.trim(), per: Object.fromEntries(SUP_KEYS.map(k => [k, n1(+x[k] || 0)])), src: d.src};
-  S.supps = S.supps.filter(o => !(s.barcode && o.barcode === s.barcode)); // re-photographed barcode replaces the old values
-  S.supps.push(s); supDraft = null; save(); go('Supplements'); toastMsg(`Added ${s.name}. Tick it when taken.`);
-}
-// "brand | name | serving | kcal | protein | carbs | fat | fibre" → draft
-function supParse(line, extra) {
-  const x = (line || '').split('\n').find(l => l.includes('|'))?.split('|').map(v => v.trim());
-  if (!x || x.length < 4) return null;
-  return {brand: x[0], name: [x[0], x[1]].filter(Boolean).join(' ').trim() || 'Supplement', serving: x[2] || '', per: Object.fromEntries(SUP_KEYS.map((k, i) => [k, n1(parseFloat(x[i + 3]) || 0)])), ...extra};
-}
-
-// ---------- barcode ----------
-function supScan() {
-  scanBarcode(); // reuse barcode.js overlay, then reroute its results here
-  const box = document.getElementById('scanbox'), f = box?.querySelector('form');
-  if (f) f.setAttribute('onsubmit', 'event.preventDefault();closeScan();supCode(this.c.value.trim())');
-  supHc = handleCode; handleCode = supCode;
-  box?.querySelector('button.sec')?.addEventListener('click', supUnhook);
-}
-let supHc = null;
-function supUnhook() { if (supHc) { handleCode = supHc; supHc = null; } }
-async function supCode(code) {
-  supUnhook(); supInit();
-  if (!/^\d{6,14}$/.test(code)) return alert("That doesn't look like a barcode number.");
-  const known = S.supps.find(s => s.barcode === code);
-  if (known) { go('Supplements'); if (!supTaken(known.id)) supToggle(known.id); return toastMsg(`${known.name} is already added. Ticked as taken today.`); }
-  toastMsg('Looking it up…');
-  for (const host of ['world.openfoodfacts.org', 'world.openproductsfacts.org', 'world.openbeautyfacts.org']) {
-    try {
-      const j = await (await fetch(`https://${host}/api/v2/product/${code}.json?fields=product_name,brands,nutriments,serving_quantity,serving_size`)).json();
-      if (j.status !== 1) continue;
-      const p = j.product || {}, n = p.nutriments || {}, sq = +p.serving_quantity || 0, br = (p.brands || '').split(',')[0].trim();
-      const val = k => n[k + '_serving'] != null ? +n[k + '_serving'] : n[k + '_100g'] != null && sq ? +n[k + '_100g'] * sq / 100 : 0;
-      const pn = (p.product_name || '').trim();
-      supDraft = {brand: br, name: (br && !pn.toLowerCase().includes(br.toLowerCase()) ? `${br} ${pn}` : pn || br).trim() || 'Product ' + code, barcode: code,
-        serving: p.serving_size || (sq ? sq + ' g' : ''), per: {kcal: n1(val('energy-kcal')), protein: n1(val('proteins')), carbs: n1(val('carbohydrates')), fat: n1(val('fat')), fibre: n1(val('fiber'))}, src: host.split('.')[1].replace('open', 'Open ').replace('facts', ' Facts')};
-      return go('Supplements');
-    } catch {}
-  }
-  if (aiKey() && confirm('Not in the free databases. Look it up on the web with Claude (about 5p)?')) {
-    toastMsg('Searching the web…');
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {method: 'POST', headers: {'content-type': 'application/json', 'x-api-key': aiKey(), 'anthropic-version': '2026-10-21', 'anthropic-dangerous-direct-browser-access': 'true'},
-        body: JSON.stringify({model: 'claude-sonnet-5-5', max_tokens: 2000, output_config: {effort: 'low'}, tools: [{type: 'web_search_20260209', name: 'web_search', max_uses: 3, user_location: {type: 'approximate', country: 'GB'}}],
-          messages: [{role: 'user', content: `Identify the UK product with barcode ${code} (a supplement or food). Reply with ONE line only: brand | product name | serving size text | kcal per serving | protein g | carbs g | fat g | fibre g. Reply NOT FOUND if you cannot identify it confidently.`}]})});
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(res.status === 401 ? 'The API key was rejected. Check it in Settings.' : j.error?.message || `Error ${res.status}`);
-      const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
-      const d = !/NOT FOUND/i.test(text) && supParse(text, {barcode: code, src: 'web search (Claude)'});
-      if (d) { supDraft = d; return go('Supplements'); }
-    } catch (e) { alert(e.message); }
-  }
-  if (confirm("Couldn't identify this barcode. Photo the nutrition label instead?")) supPhoto(code); else supType();
-}
-
-// ---------- label photo ----------
-let supPhotoCode = '';
-const supPhotoIn = Object.assign(document.createElement('input'), {type: 'file', accept: 'image/*', hidden: true});
-document.body.append(supPhotoIn);
-function supPhoto(code) {
-  if (!aiKey()) return alert('Reading a label needs a Claude key. Add one in Settings, or use Type.');
-  supPhotoCode = typeof code === 'string' ? code : supDraft?.barcode || ''; supPhotoIn.click();
-}
-supPhotoIn.onchange = async () => {
-  const f = supPhotoIn.files[0]; supPhotoIn.value = ''; if (!f) return;
-  toastMsg('Reading the label…');
-  try {
-    const img = await shrinkImage(f, 1000);
-    const reply = await claude('You read UK supplement and food labels. Reply with one line only, no other text.',
-      [{role: 'user', content: [{type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: img.split(',')[1]}},
-        {type: 'text', text: 'Give: brand | product name | serving size text | kcal per serving | protein g | carbs g | fat g | fibre g. Per serving (fibre is important). Use 0 if not shown.'}]}], 800, 'photo');
-    const d = supParse(reply, {barcode: supPhotoCode, src: 'label photo (Claude)'});
-    if (!d) throw new Error("Couldn't read the label. Try a closer, flatter photo, or Type it.");
-    supDraft = d; go('Supplements');
-  } catch (e) { alert(e.message); }
-};
-
-// ---------- entry points ----------
-const _supToday = screens.Today;
-screens.Today = () => {
-  supInit(); const h = _supToday(), a = '<div class="sec-h"><h2>Diary</h2>', n = supActive().filter(s => supTaken(s.id)).length;
-  const card = `<button class="card sup-entry" onclick="supDraft=null;go('Supplements')">💊 ${supActive().length ? `Supplements · ${n} of ${supActive().length} today` : 'Add supplements (fibre, protein, vitamins)'}<span aria-hidden="true">›</span></button>`;
-  return h.replace(a, card + a);
-};
-if (screens.Menu) {
-  const _supMenu = screens.Menu;
-  screens.Menu = () => _supMenu().replace('<div class="card mgrp"><ul>', `<div class="card mgrp"><ul><li><button class="mrow" onclick="supDraft=null;go('Supplements')">Supplements<span aria-hidden="true">›</span></button></li>`);
-}
+// Home card and Menu row
+const _svToday = screens.Today;
+screens.Today = () => { svInit(); const h = _svToday(), a = '<div class="sec-h"><h2>Diary</h2>', taken = S.svMine.filter(k => svGot(k)).length, f = n1(svDayTotals(today()).fibre || 0);
+  return h.replace(a, `<button class="card sv-home" onclick="go('Supplements')"><span class="sv-badge ${taken ? 'on' : ''}">${SV_ICON}</span><span style="flex:1;text-align:left"><b>Supplements</b><br><span class="mute">${taken} of ${S.svMine.length} today${f ? ` · ${f} g fibre` : ''}</span></span><span class="mute">›</span></button>` + a); };
+if (screens.Menu) { const _svMenu = screens.Menu; screens.Menu = () => { const h = _svMenu(), i = h.indexOf('<li'); return i < 0 ? h : h.slice(0, i) + `<li style="cursor:pointer" onclick="go('Supplements')"><span style="display:flex;align-items:center;gap:10px"><span class="sv-badge sm">${SV_ICON}</span>Supplements</span><span class="mute">›</span></li>` + h.slice(i); }; }
