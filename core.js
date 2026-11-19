@@ -31,6 +31,22 @@ const CHIP_SETS = {
     'Banana', 'Berries', 'Apples', 'Greek yoghurt', 'Cheese', 'Milk', 'Peanut butter', 'Nuts', 'Spicy food', 'Caribbean', 'Indian', 'Chinese', 'Japanese', 'Italian', 'Vegetarian'],
   allergy: ['Peanuts', 'Tree nuts', 'Milk / lactose', 'Eggs', 'Gluten / wheat', 'Fish', 'Shellfish', 'Soya', 'Sesame', 'Celery', 'Mustard', 'Sulphites'],
 };
+// grouped food ticks for the foodLike / foodAvoid setup questions (stored as the same comma text)
+const SU_FOOD = {
+  'Meat & fish': ['Chicken', 'Beef', 'Lamb', 'Goat', 'Pork', 'Turkey', 'Fish', 'Salmon', 'Tuna', 'Prawns'],
+  Carbs: ['Rice', 'Rice and peas', 'Pasta', 'Potatoes', 'Bread', 'Oats', 'Noodles', 'Plantain', 'Yam', 'Dumplings'],
+  Veg: ['Broccoli', 'Spinach', 'Peppers', 'Mushrooms', 'Sweetcorn', 'Peas', 'Salad', 'Callaloo', 'Carrots', 'Green beans'],
+  Fruit: ['Banana', 'Berries', 'Apples', 'Oranges', 'Mango', 'Pineapple'],
+  'Dairy & eggs': ['Eggs', 'Greek yoghurt', 'Cheese', 'Milk'],
+  'Plant protein': ['Beans', 'Lentils', 'Chickpeas', 'Tofu', 'Nuts', 'Peanut butter'],
+  'Cuisines & takeaways': ['Caribbean', 'Indian', 'Chinese', 'Japanese', 'Italian', "Nando's", 'Wagamama', 'Fast food', 'Spicy food', 'Vegetarian'],
+};
+function suFoodInput(k, val) {
+  const on = terms(val), liked = k === 'foodAvoid' ? terms(P().foodLike) : [], all = Object.values(SU_FOOD).flat(), other = on.filter(x => !all.some(e => e.toLowerCase() === x)).join(', ');
+  return `<div id="ivv">${Object.entries(SU_FOOD).map(([g, list]) => `<div class="sugrp"><div class="sughd"><h3>${esc(g)}</h3><button type="button" class="link" onclick="this.closest('.sugrp').querySelectorAll('input:not(:disabled)').forEach(c=>c.checked=true)">Tick all</button></div>
+    ${list.map(f => { const l = f.toLowerCase(), dis = liked.includes(l); return `<label class="surow${dis ? ' dis' : ''}"><input type="checkbox" class="sutick" value="${esc(f)}" ${on.includes(l) && !dis ? 'checked' : ''} ${dis ? 'disabled' : ''}><span>${esc(f)}</span>${dis ? '<small>liked</small>' : ''}</label>`; }).join('')}</div>`).join('')}</div>
+  <input id="ivo" placeholder="Anything else? (optional)" value="${esc(other)}">`;
+}
 const uid = () => Date.now() + Math.random();
 const blank = () => ({
   v: VERSION, profile: {session: 45}, iv: 0,
@@ -111,6 +127,7 @@ function ivInput(q) {
   if (t === 'days') return `<div class="grid3" id="ivv">${DAYS.map(d => `<label class="chk"><input type="checkbox" value="${d}" ${Array.isArray(val) && val.includes(d) ? 'checked' : ''}> ${d}</label>`).join('')}</div>`;
   if (t === 'gymequip') { const g = S.gyms[0]; return `<p class="mute">${esc(g.name)}. Tap to tick. Change it any time in Training → Gyms.</p><div class="chips" id="ivv">${g.equipment.map(e => `<button type="button" class="chip ${e.status === 'available' ? 'on' : ''}" onclick="this.classList.toggle('on')">${esc(e.name)}</button>`).join('')}</div>
     <button type="button" class="link" onclick="document.querySelectorAll('#ivv .chip').forEach(c=>c.classList.add('on'))">Tick all</button>`; }
+  if (t === 'chips' && opts === 'food') return suFoodInput(k, val);
   if (t === 'chips') { const on = terms(val), list = CHIP_SETS[opts] || EQUIP, other = terms(val).filter(x => !list.some(e => e.toLowerCase() === x)).join(', '); return `<div class="chips" id="ivv">${list.map(e => `<button type="button" class="chip ${on.includes(e.toLowerCase()) ? 'on' : ''}" onclick="this.classList.toggle('on')">${esc(e)}</button>`).join('')}</div><input id="ivo" placeholder="Anything else? (optional)" value="${esc(other)}">`; }
   if (t === 'textarea') return `<textarea id="ivv" rows="3">${esc(val)}</textarea>`;
   return `<input id="ivv" type="${t}" ${t === 'number' ? 'inputmode="decimal" step="any"' : ''} value="${esc(val)}">`;
@@ -119,7 +136,7 @@ function ivAnswer(mode) {
   const i = ivSingle ? QUESTIONS.findIndex(q => q[0] === ivSingle) : S.iv, [k, , t] = QUESTIONS[i];
   let v = mode;
   if (mode === 'save') {
-    const chips = () => [...document.querySelectorAll('#ivv .chip.on')].map(c => c.textContent);
+    const chips = () => [...document.querySelectorAll('#ivv .chip.on, #ivv input.sutick:checked')].map(c => c.value || c.textContent);
     if (t === 'gymequip') { const on = chips(), g = S.gyms[0]; g.equipment.forEach(e => e.status = on.includes(e.name) ? 'available' : 'unavailable'); g.confirmedAt = today(); v = on.length ? `${on.length} items` : ''; }
     else v = t === 'days' ? [...document.querySelectorAll('#ivv input:checked')].map(c => c.value) : t === 'chips' ? [...chips(), document.getElementById('ivo')?.value.trim()].filter(Boolean).join(', ') : document.getElementById('ivv').value.trim();
     if (t === 'number' && v !== '' && !(+v > 0)) return alert('Enter a positive number, or tap Skip.');

@@ -112,7 +112,7 @@ function buildRoutine(name, slots, g, limit, prev = []) {
   // target zones: one extra set on that group's first accessory (optional ones become regular); kept when trimming
   const fz = zoneGroups(P().focus);
   for (const grp of new Set(fz)) { const it = items.find(i => !i.compound && libOf(i.ex)[1] === grp); if (it) { it.optional = false; it.focus = true; it.sets++; const p = it.ss === 'a' ? items[items.indexOf(it) + 1] : it.ss === 'b' ? items[items.indexOf(it) - 1] : null; if (p) p.sets = it.sets; } }
-  if (P().cardio && g.equipment.some(e => e.status === 'available' && CARDIO_EQ.includes(e.name)))
+  if (P().cardio && willing(FINISHER) && g.equipment.some(e => e.status === 'available' && CARDIO_EQ.includes(e.name)))
     items.push({ex: FINISHER, sets: 1, reps: '10 min', rest: 0, alt: '', optional: true, ss: ''});
   const over = () => liftMinutes(items) > limit || estMinutes(items) > totalCap();
   const partner = it => it.ss === 'a' ? items[items.indexOf(it) + 1] : it.ss === 'b' ? items[items.indexOf(it) - 1] : null;
@@ -163,8 +163,15 @@ const SETUP = [
       + opt(p.split === 'ul', 'Upper / Lower', 'Alternate upper-body and leg days', set('ul')) + opt(p.split === 'fb', 'Full body', 'Every session hits legs, chest, back and shoulders', set('fb')); }, () => true],
   ['What is a perfect length of a workout for you?', 'Workout time only, rests not counted.', p => [30, 45, 60, 75].map(m => opt(+p.session === m, `${m} min${m === 45 ? ' <span class="tag">ideal</span>' : ''}`, '', `P().session=${m}`)).join(''), p => +p.session > 0],
   ['What are your target zones?', 'These get an extra set in your plan.', () => tickList('focus'), () => true],
+  ['Which exercises do you like?', 'Tick ones you like, ✕ ones to avoid. Liked ones are picked first; avoided ones never.', () => suExList(), () => true],
   ['Any injuries or areas to protect?', 'Exercises that load these are left out.', () => tickList('protect', 'None'), p => Array.isArray(p.protect)],
 ];
+const SU_EXG = {Chest: 'Chest', Back: 'Back', Shoulders: 'Shoulders', Arms: 'Arms', Legs: 'Legs', Hamstrings: 'Glutes & hamstrings', Core: 'Core', Cardio: 'Cardio'};
+const suExShown = grp => { const g = gym(); return LIB.filter(l => l[1] === grp && (!g?.confirmedAt || !l[2].length || equipOk(g, l[0]))).map(l => l[0]); };
+function suPref(n, v) { S.prefs[n] = S.prefs[n] === v ? '' : v; }
+function suPrefAll(grp) { suExShown(grp).forEach(n => S.prefs[n] = 'like'); }
+const suExList = () => Object.entries(SU_EXG).map(([grp, label]) => { const list = suExShown(grp); return list.length ? `<div class="sugrp"><div class="sughd"><h3>${esc(label)}</h3><button type="button" class="link" onclick="suPrefAll(${js(grp)});save();render()">Tick all</button></div>
+  ${list.map(n => { const v = S.prefs[n] || ''; return `<div class="surow"><span>${esc(n)}</span><button type="button" class="sutg like${v === 'like' ? ' on' : ''}" aria-pressed="${v === 'like'}" aria-label="Like ${esc(n)}" onclick="suPref(${js(n)},'like');save();render()">✓</button><button type="button" class="sutg avoid${v === 'avoid' ? ' on' : ''}" aria-pressed="${v === 'avoid'}" aria-label="Avoid ${esc(n)}" onclick="suPref(${js(n)},'avoid');save();render()">✕</button></div>`; }).join('')}</div>` : ''; }).join('');
 function setupScreen() {
   const p = P(), [title, sub, body, ok] = SETUP[sStep], last = sStep === SETUP.length - 1;
   return `<div class="stop"><button class="rnd" onclick="${sStep ? 'sStep--;render()' : "go('Training')"}" aria-label="Back">${ic(IC.back)}</button><div class="sprog"><i style="width:${(sStep + 1) / SETUP.length * 100}%"></i></div></div>

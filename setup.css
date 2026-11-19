@@ -1,0 +1,17 @@
+/* setup.css: grouped tick-box setup lists (foods, exercises) */
+.sugrp{background:var(--glass);border:1px solid var(--glass-b);box-shadow:inset 0 1px 0 var(--glass-hi);border-radius:var(--r-sm);padding:var(--s2) var(--s3);margin:var(--s3) 0;text-align:left}
+.sughd{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);border-bottom:1px solid var(--line);margin-bottom:4px}
+.sughd h3{margin:0;font-size:17px;color:var(--ink)}
+.sughd button.link{width:auto;padding:4px 8px}
+.surow{display:flex;align-items:center;gap:var(--s3);min-height:46px;color:var(--ink);font-size:16px;font-weight:400;border-bottom:1px solid var(--line)}
+.surow:last-child{border-bottom:0}
+.surow>span{flex:1}
+.surow small{color:var(--mute);font-size:13px}
+.surow.dis{opacity:.45}
+.sutick{appearance:none;-webkit-appearance:none;width:26px;height:26px;min-height:0;padding:0;flex:none;border-radius:8px;border:2px solid var(--line);background:var(--card);display:grid;place-items:center;cursor:pointer}
+.sutick:checked{background:var(--acc);border-color:var(--acc)}
+.sutick:checked::after{content:'✓';color:#fff;font-size:16px;font-weight:700;line-height:1}
+.sutick:focus-visible,.sutg:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+button.sutg{width:36px;height:36px;min-height:0;padding:0;flex:none;border-radius:50%;border:2px solid var(--line);background:var(--card);color:var(--mute);font-size:16px;font-weight:700;box-shadow:none!important}
+button.sutg.like.on{background:var(--acc);border-color:var(--acc);color:#fff}
+button.sutg.avoid.on{background:var(--warn);border-color:var(--warn);color:#fff}

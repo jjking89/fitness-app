@@ -1,0 +1,11 @@
+/* supps.css */
+.sup-acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:var(--s2,12px) 0}
+.sup-acts>button{min-height:68px;font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.sup-acts>button b{font-size:22px;font-weight:400}
+.sup-list li{display:flex;align-items:center;gap:12px}
+.sup-txt{flex:1;min-width:0}
+button.sup-tick{width:36px;min-width:36px;height:36px;min-height:36px;padding:0;border-radius:50%;background:transparent;border:2px solid var(--line);color:transparent;font-weight:700;flex:none}
+button.sup-tick.on{background:var(--acc);border-color:var(--acc);color:#fff}
+button.sup-x{width:32px;min-width:32px;min-height:32px;padding:0;background:transparent;color:var(--mute);flex:none}
+.sup-warn{font-size:13px;color:var(--warn,var(--mute))}
+button.sup-entry{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;color:var(--ink);font-weight:500}

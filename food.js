@@ -262,7 +262,7 @@ const repeatMeal = m => { S.meals.push({id: uid(), date: today(), ...pick(m, MEA
 function favMeal(id) { const m = S.meals.find(x => x.id == id); if (S.favs.some(f => f.name === m.name)) return alert('Already a favourite.'); S.favs.push({id: uid(), date: today(), ...pick(m, MEAL_KEYS)}); save(); render(); }
 let foodDay = null; const fDay = () => foodDay || today();
 const dayNav = () => `<div class="daynav"><button class="link" onclick="foodDay=dayOffset(-1,fDay());render()" aria-label="Previous day">‹</button><b>${fDay() === today() ? 'Today' : ukDate(fDay())}</b><button class="link" ${fDay() === today() ? 'disabled' : ''} onclick="foodDay=dayOffset(1,fDay());if(foodDay>=today())foodDay=null;render()" aria-label="Next day">›</button></div>`;
-const mealActions = () => `${dayNav()}${MEAL_SLOTS.map(sl => mealSlotCard(sl, S.meals.filter(m => m.date === fDay() && slotOf(m) === sl[0]), true)).join('')}${completeBtn(fDay())}
+const mealActions = () => `${dayNav()}${fDay() === today() ? '' : dayRecap(fDay())}${MEAL_SLOTS.map(sl => mealSlotCard(sl, S.meals.filter(m => m.date === fDay() && slotOf(m) === sl[0]), true)).join('')}${completeBtn(fDay())}
   ${S.draft?.items.length ? `<button class="sec mt" onclick="go('Meal')">Continue draft (${S.draft.items.length} item${S.draft.items.length === 1 ? '' : 's'})</button>` : ''}`;
 function dayTotals(d = today()) { const m = S.meals.filter(x => x.date === d); return {kcal: sum(m, 'kcal'), protein: sum(m, 'protein'), carbs: sum(m, 'carbs'), fat: sum(m, 'fat'), fibre: sum(m, 'fibre'), water: sum(S.water.filter(x => x.date === d), 'ml'), n: m.length}; }
 
@@ -270,14 +270,15 @@ screens.Food = () => {
   const t = dayTotals();
   return `<h1 class="xl">Food</h1>${seg([['Diary', "go('Food')"], ['Meal Planner', "go('MealPlan')"], ['Groceries', "go('Shopping')"]], 'Diary')}
   ${has(P().allergies) ? `<div class="note"><b>Allergies:</b> ${esc(P().allergies)}</div>` : ''}
-  ${macroCard(t)}${mealActions()}${quickFood()}
-  ${S.favs.length ? `<div class="card"><h2>Favourites</h2><ul>${S.favs.map(f => `<li><span>⭐ ${esc(f.name)}<br><span class="mute">${mealInfo(f)}</span></span><span style="white-space:nowrap"><button onclick="repeatMeal(${js(f)})">+ Add</button><button onclick="S.favs=S.favs.filter(x=>x.id!=${f.id});save();render()" aria-label="Remove favourite">✕</button></span></li>`).join('')}</ul></div>` : ''}
+  ${macroCard(t)}${mealActions()}${fiQuickFood()}
+  ${S.favs.length ? `<div class="card"><h2>Favourites</h2><ul>${S.favs.map(f => `<li class="fi-row" onclick="openFoodInfo('past',${js(f)})"><span>⭐ ${esc(f.name)}<br><span class="mute">${mealInfo(f)}</span></span><span style="white-space:nowrap" onclick="event.stopPropagation()"><button class="fi-amt" onclick="openFoodInfo('past',${js(f)})">1 serving</button><button onclick="repeatMeal(${js(f)})">+ Add</button><button onclick="S.favs=S.favs.filter(x=>x.id!=${f.id});save();render()" aria-label="Remove favourite">✕</button></span></li>`).join('')}</ul></div>` : ''}
   
   <details class="card more"><summary>Water log</summary><ul>${items('water', w => w.ml + ' ml', 8)}</ul></details>`;
 };
 
-// ---------- meal planner ----------
-// Generic recipes, per serving. contains = allergen tags. ing = [name, qty, unit] per serving.
+// ---------- meal planner: cook once, eat twice ----------
+// Recipes are stored per serving (n, ing); every planned recipe is cooked as a 2-serving batch and the second serving is the next day's leftover.
+// contains = allergen tags. ing = [name, qty, unit] per serving. Slots: {r: recipe id, f: portion factor, lo: leftover?}.
 const RECIPES = [
   {id: 'r1', name: 'Porridge with banana & berries', meal: 'Breakfast', prep: 5, cost: .6, n: [380, 13, 66, 7, 7], contains: ['gluten', 'dairy'], ing: [['Porridge oats', 50, 'g'], ['Semi-skimmed milk', 250, 'ml'], ['Banana', 1, ''], ['Frozen berries', 60, 'g']]},
   {id: 'r2', name: 'Greek yoghurt, oats & honey', meal: 'Breakfast', prep: 3, cost: .9, n: [340, 22, 45, 8, 4], contains: ['dairy', 'gluten'], ing: [['Greek yoghurt', 200, 'g'], ['Porridge oats', 30, 'g'], ['Honey', 10, 'g']]},
@@ -293,6 +294,16 @@ const RECIPES = [
   {id: 'r12', name: 'Chickpea & spinach curry with rice', meal: 'Dinner', prep: 30, cost: 1.2, n: [560, 20, 85, 14, 14], contains: [], veg: true, ing: [['Chickpeas', 1, 'tin'], ['Spinach', 80, 'g'], ['Chopped tomatoes', 200, 'g'], ['Curry paste', 20, 'g'], ['Rice', 75, 'g']]},
   {id: 'r13', name: 'Turkey meatball pasta', meal: 'Dinner', prep: 30, cost: 2.2, n: [610, 42, 70, 15, 6], contains: ['gluten'], ing: [['Turkey mince', 125, 'g'], ['Pasta', 80, 'g'], ['Passata', 200, 'g']]},
   {id: 'r14', name: 'Tofu stir-fry with noodles', meal: 'Dinner', prep: 20, cost: 1.8, n: [540, 26, 70, 16, 7], contains: ['soy', 'gluten'], veg: true, ing: [['Tofu', 150, 'g'], ['Stir-fry vegetables', 200, 'g'], ['Egg-free noodles', 75, 'g'], ['Soy sauce', 15, 'ml']]},
+  {id: 'r15', name: 'Special fried rice with prawns, chicken & egg', meal: 'Dinner', prep: 20, cost: 2.4, n: [610, 42, 72, 15, 5], contains: ['egg', 'fish', 'soy'], ing: [['Rice', 75, 'g'], ['Chicken breast', 80, 'g'], ['King prawns', 60, 'g'], ['Eggs', 1, ''], ['Frozen peas', 60, 'g'], ['Spring onions', 2, ''], ['Soy sauce', 15, 'ml'], ['Vegetable oil', 5, 'ml']]},
+  {id: 'r16', name: 'Jerk chicken with rice and peas', meal: 'Dinner', prep: 40, cost: 2.2, n: [650, 45, 75, 16, 8], contains: [], ing: [['Chicken thighs (boneless)', 150, 'g'], ['Jerk seasoning', 15, 'g'], ['Rice', 70, 'g'], ['Kidney beans', 60, 'g'], ['Light coconut milk', 60, 'ml'], ['Spring onions', 1, '']]},
+  {id: 'r17', name: 'Curry chicken with rice', meal: 'Dinner', prep: 45, cost: 2, n: [630, 44, 70, 16, 5], contains: [], ing: [['Chicken thighs (boneless)', 150, 'g'], ['Caribbean curry powder', 10, 'g'], ['Potatoes', 100, 'g'], ['Onions', .5, ''], ['Rice', 70, 'g'], ['Vegetable oil', 5, 'ml']]},
+  {id: 'r18', name: 'Turkey chilli with rice', meal: 'Dinner', prep: 35, cost: 1.9, n: [580, 44, 70, 10, 12], contains: [], ing: [['Turkey mince (5% fat)', 125, 'g'], ['Kidney beans', 100, 'g'], ['Chopped tomatoes', 200, 'g'], ['Peppers', .5, ''], ['Onions', .5, ''], ['Rice', 70, 'g']]},
+  {id: 'r19', name: 'Salmon noodle stir-fry', meal: 'Dinner', prep: 20, cost: 3.2, n: [620, 36, 62, 23, 6], contains: ['fish', 'gluten', 'soy'], ing: [['Salmon fillets', 1, ''], ['Egg-free noodles', 75, 'g'], ['Stir-fry vegetables', 200, 'g'], ['Soy sauce', 15, 'ml'], ['Ginger', 5, 'g']]},
+  {id: 'r20', name: 'Chicken fajita bowl', meal: 'Lunch', prep: 25, cost: 2.1, n: [580, 45, 65, 13, 9], contains: ['dairy'], ing: [['Chicken breast', 130, 'g'], ['Peppers', 1, ''], ['Onions', .5, ''], ['Fajita seasoning', 10, 'g'], ['Rice', 60, 'g'], ['Black beans', 60, 'g'], ['Low-fat soured cream', 30, 'g']]},
+  {id: 'r21', name: 'Lentil dhal with rice', meal: 'Lunch', prep: 30, cost: .9, n: [560, 24, 92, 9, 14], contains: [], veg: true, ing: [['Red lentils', 80, 'g'], ['Chopped tomatoes', 100, 'g'], ['Onions', .5, ''], ['Garlic', 1, 'clove'], ['Curry powder', 5, 'g'], ['Spinach', 50, 'g'], ['Rice', 60, 'g']]},
+  {id: 'r22', name: 'Overnight oats with berries', meal: 'Breakfast', prep: 5, cost: .8, n: [390, 20, 55, 9, 8], contains: ['dairy', 'gluten'], ing: [['Porridge oats', 50, 'g'], ['Greek yoghurt (0%)', 100, 'g'], ['Semi-skimmed milk', 100, 'ml'], ['Frozen berries', 80, 'g'], ['Chia seeds', 5, 'g']]},
+  {id: 'r23', name: 'Greek yoghurt bowl with fruit & seeds', meal: 'Breakfast', prep: 3, cost: 1, n: [330, 25, 35, 10, 6], contains: ['dairy'], ing: [['Greek yoghurt (0%)', 200, 'g'], ['Banana', .5, ''], ['Frozen berries', 60, 'g'], ['Mixed seeds', 10, 'g'], ['Honey', 5, 'g']]},
+  {id: 'r24', name: 'Egg & veg omelette wrap', meal: 'Breakfast', prep: 10, cost: .9, n: [420, 26, 30, 21, 5], contains: ['egg', 'gluten', 'dairy'], ing: [['Eggs', 2, ''], ['Tortilla wraps', 1, ''], ['Spinach', 30, 'g'], ['Peppers', .25, ''], ['Reduced-fat cheddar', 15, 'g']]},
 ];
 const ALLERGENS = {nuts: ['nut', 'peanut', 'almond', 'cashew', 'hazelnut'], dairy: ['dairy', 'milk', 'lactose', 'cheese', 'yoghurt'], egg: ['egg'], gluten: ['gluten', 'wheat', 'coeliac', 'celiac'], fish: ['fish', 'salmon', 'tuna', 'seafood', 'shellfish', 'prawn'], soy: ['soy', 'soya', 'tofu']};
 function allergyTags() {
@@ -310,55 +321,106 @@ function recipeOk(r) {
   return true;
 }
 const recipeLike = r => terms(P().foodLike).some(w => r.name.toLowerCase().includes(w)) ? 0 : 1;
-const recipe = id => RECIPES.find(r => r.id === id);
+const planRecipes = () => [...RECIPES, ...(S.myRecipes || [])];
+const recipe = id => planRecipes().find(r => r.id === id);
+const PLAN_WIN = {Breakfast: [250, 450], Lunch: [500, 700], Dinner: [500, 700]};
+// portion factor that brings one serving into its calorie window; 0 = can't fit sensibly
+function planFit(r) {
+  const [lo, hi] = PLAN_WIN[r.meal] || [0, 1e9], k = r.n[0];
+  if (k >= lo && k <= hi) return 1;
+  const f = (k < lo ? Math.ceil : Math.floor)((k < lo ? lo : hi) / k * 20) / 20; // round towards the inside of the window
+  return f < .6 || f > 1.6 ? 0 : f;
+}
+const planF = x => x?.f ?? x?.s ?? 1; // old plans stored servings as s
+const planN = (r, f) => r.n.map(v => v * f); // per serving at portion factor
+const planMon = () => dayOffset(-((new Date(today() + 'T12:00').getDay() + 6) % 7));
 function generateMealPlan() {
   const slots = {}, budget = +P().budget || 0;
   for (const meal of ['Breakfast', 'Lunch', 'Dinner']) {
-    let pool = RECIPES.filter(r => r.meal === meal && recipeOk(r)).sort((a, b) => recipeLike(a) - recipeLike(b) || b.n[4] - a.n[4] || a.cost - b.cost);
-    if (budget) pool = pool.filter(r => r.cost * 7 * 3 <= budget * 1.5 || r === pool[0]);
-    DAYS.forEach((d, i) => { if (pool.length) slots[`${d}|${meal}`] = {r: pool[i % Math.min(pool.length, 3)].id, s: S.mealPlan.slots[`${d}|${meal}`]?.s || 1}; });
+    let pool = planRecipes().filter(r => r.meal === meal && recipeOk(r) && planFit(r)).sort((a, b) => recipeLike(a) - recipeLike(b) || b.n[4] - a.n[4] || a.cost - b.cost);
+    if (budget) pool = pool.filter(r => (r.cost || 0) * 7 * 3 <= budget * 1.5 || r === pool[0]);
+    // cook on Mon, Wed, Fri, Sun; the day after is the leftover
+    DAYS.forEach((d, i) => { if (pool.length) { const r = pool[Math.floor(i / 2) % Math.min(pool.length, 4)]; slots[`${d}|${meal}`] = {r: r.id, f: planFit(r), lo: i % 2 === 1}; } });
   }
   S.pending = {kind: 'meals', slots, at: today()}; save(); go('MealPlan');
 }
-const planCost = slots => Object.values(slots).reduce((t, x) => t + (recipe(x.r)?.cost || 0) * x.s, 0);
-function planDay(slots, d) { return ['Breakfast', 'Lunch', 'Dinner'].map(m => slots[`${d}|${m}`]).filter(Boolean).reduce((t, x) => recipe(x.r).n.map((v, i) => t[i] + v * x.s), [0, 0, 0, 0, 0]); }
+const planCost = slots => Object.values(slots).reduce((t, x) => t + (x.lo ? 0 : (recipe(x.r)?.cost || 0) * 2 * planF(x)), 0);
+function planDay(slots, d) { return ['Breakfast', 'Lunch', 'Dinner'].map(m => slots[`${d}|${m}`]).filter(x => x && recipe(x.r)).reduce((t, x) => planN(recipe(x.r), planF(x)).map((v, i) => t[i] + v), [0, 0, 0, 0, 0]); }
+const planMacros = n => `${Math.round(n[0])} kcal · P ${Math.round(n[1])} · C ${Math.round(n[2])} · F ${Math.round(n[3])} · Fibre ${Math.round(n[4])} g`;
+function planCard(key, x, pend) {
+  const [d, m] = key.split('|'), r = recipe(x.r); if (!r) return '';
+  const f = planF(x), prev = DAYS[DAYS.indexOf(d) - 1];
+  return `<div class="plan-meal${x.lo ? ' lo' : ''}"><div class="plan-top"><b>${esc(r.name)}</b>${x.lo ? '<span class="tag">Leftover</span>' : ''}</div>
+    <div class="mute">${x.lo ? `Second serving from ${prev ? esc(prev) : 'the batch'}` : 'Makes 2 servings · cook once, eat twice'}${f !== 1 ? ` · portion ×${f}` : ''}</div>
+    <div class="plan-n">${planMacros(planN(r, f))} <span class="mute">per serving</span></div>
+    ${x.lo ? '' : `<details class="plan-ing"><summary>Ingredients for 2 servings${r.prep ? ` · ${r.prep} min` : ''}</summary><ul>${r.ing.map(([n, q, u]) => `<li><span>${esc(n)}</span><span class="mute">${gb(n1(q * 2 * f))}${u ? ' ' + esc(u) : ''}</span></li>`).join('')}</ul>
+      ${r.method?.length ? `<ol class="plan-method">${r.method.map(s => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}</details>`}
+    ${pend ? '' : `<button class="sec plan-add" onclick="planAdd(${js(key)})">${x.lo ? 'Add leftover' : 'Add to food tracker'}</button>`}</div>`;
+}
+let planIdeas = [], planBusy = false;
 screens.MealPlan = () => {
   const pend = S.pending?.kind === 'meals', slots = pend ? S.pending.slots : S.mealPlan.slots, {unmatched} = allergyTags();
   return `<h1 class="xl">Food</h1>${seg([['Diary', "go('Food')"], ['Meal Planner', "go('MealPlan')"], ['Groceries', "go('Shopping')"]], 'Meal Planner')}<h2>${pend ? 'Review meal plan' : 'Weekly meals'}</h2>
   ${!pend ? act3([[Object.keys(slots).length ? 'New plan' : 'Create plan', 'plus', 'generateMealPlan()'], ['Groceries', 'edit', "go('Shopping')"], ['Diary', 'more', "go('Food')"]]) : ''}
-  <div class="card mt"><p class="mute">Using: likes ${has(P().foodLike) ? esc(P().foodLike) : '—'} · avoid ${has(P().foodAvoid) ? esc(P().foodAvoid) : '—'} · allergies ${has(P().allergies) ? esc(P().allergies) : '—'} · budget ${+P().budget ? '£' + P().budget + '/week' : '—'} · prep ${+P().prepTime ? '≤' + P().prepTime + ' min' : '—'}</p>
+  <div class="card mt"><p class="mute">Cook once, eat twice: each recipe makes 2 servings, the second is the next day's leftover. Per serving: breakfast 250–450 kcal, lunch and dinner 500–700 kcal.</p>
+    <p class="mute">Using: likes ${has(P().foodLike) ? esc(P().foodLike) : '—'} · avoid ${has(P().foodAvoid) ? esc(P().foodAvoid) : '—'} · allergies ${has(P().allergies) ? esc(P().allergies) : '—'} · budget ${+P().budget ? '£' + P().budget + '/week' : '—'} · prep ${+P().prepTime ? '≤' + P().prepTime + ' min' : '—'}</p>
     ${unmatched.length ? `<div class="note">I couldn't match “${unmatched.map(esc).join('”, “')}” to recipe allergen tags. Check every ingredient yourself.</div>` : ''}
     <div class="note">Recipe allergen tags are generic. Always check packet labels.</div>
     <p>Estimated cost: <b>£${planCost(slots).toFixed(2)}</b>${+P().budget ? ` of £${P().budget}` : ''} per week (rough UK supermarket prices)</p>
-    ${!pend ? `<button class="sec" onclick="generateMealPlan()">${Object.keys(slots).length ? 'Suggest a new plan' : 'Suggest a plan'}</button>` : ''}</div>
+    ${!pend ? `<button class="sec" onclick="generateMealPlan()">${Object.keys(slots).length ? 'Suggest a new plan' : 'Suggest a plan'}</button>` : ''}
+    ${aiKey() && !pend ? `<button class="sec mt" ${planBusy ? 'disabled' : ''} onclick="planAskIdeas()">${planBusy ? 'Asking Claude…' : '✨ New recipe ideas'}</button>` : ''}</div>
+  ${planIdeas.map((r, i) => `<div class="card plan-idea"><span class="tag">${esc(r.meal)}</span>${planCard('Idea|' + r.meal, {r: r.id, f: 1}, true)}
+    <div class="grid2 mt"><button onclick="planKeep(${i})">Keep</button><button class="sec" onclick="planIdeas.splice(${i},1);render()">Skip</button></div></div>`).join('')}
   ${DAYS.map(d => { const [k, p, , , fb] = planDay(slots, d); return `<div class="card"><h2>${d}</h2>
-    ${['Breakfast', 'Lunch', 'Dinner'].map(m => { const key = `${d}|${m}`, x = slots[key]; return `<label>${m}</label><div class="row" style="align-items:center">
-      <select style="flex:3" onchange="setSlot('${key}','r',this.value)"><option value="">—</option>${RECIPES.filter(r => r.meal === m).map(r => `<option value="${r.id}" ${x?.r === r.id ? 'selected' : ''} ${recipeOk(r) ? '' : 'disabled'}>${esc(r.name)} (${r.n[4]} g fibre)${recipeOk(r) ? '' : ' (excluded)'}</option>`).join('')}</select>
-      <input style="flex:1" type="number" inputmode="decimal" step="0.5" min="0" value="${x?.s ?? 1}" onchange="setSlot('${key}','s',+this.value)" aria-label="Servings">
-      ${!pend && x ? `<button class="sec" style="flex:0 0 auto;width:auto" onclick="logPlanned('${key}')">Log</button>` : ''}</div>`; }).join('')}
+    ${['Breakfast', 'Lunch', 'Dinner'].map(m => { const key = `${d}|${m}`, x = slots[key]; return `<label>${m}</label>
+      <select onchange="setSlot('${key}','r',this.value)"><option value="">—</option>${planRecipes().filter(r => r.meal === m).map(r => { const ok = recipeOk(r) && planFit(r); return `<option value="${esc(r.id)}" ${x?.r === r.id ? 'selected' : ''} ${ok ? '' : 'disabled'}>${esc(r.name)}${ok ? '' : ' (excluded)'}</option>`; }).join('')}</select>
+      ${x ? planCard(key, x, pend) : ''}`; }).join('')}
     <p class="mute">${Math.round(k)} kcal${+P().kcal ? ' of ' + P().kcal : ''} · ${Math.round(p)} g protein${+P().protein ? ' of ' + P().protein : ''} · ${Math.round(fb)} g fibre${+P().fibre ? ' of ' + P().fibre : ''}</p></div>`; }).join('')}
   ${pend ? `<button onclick="S.mealPlan.slots=S.pending.slots;S.pending=null;save();render()">Apply this plan</button><button class="sec mt" onclick="S.pending=null;save();render()">Discard suggestion</button>` : ''}`;
 };
+// picking a recipe by hand cooks it that day; the next day's same meal becomes its leftover if empty
 function setSlot(key, k, v) {
   const slots = S.pending?.kind === 'meals' ? S.pending.slots : S.mealPlan.slots;
-  if (k === 'r' && !v) delete slots[key]; else { slots[key] ||= {r: '', s: 1}; slots[key][k] = v; }
+  if (k === 'r' && !v) delete slots[key];
+  else if (k === 'r') {
+    const r = recipe(v), [d, m] = key.split('|'), nd = DAYS[DAYS.indexOf(d) + 1];
+    slots[key] = {r: v, f: planFit(r) || 1, lo: false};
+    if (nd && !slots[`${nd}|${m}`]) slots[`${nd}|${m}`] = {r: v, f: slots[key].f, lo: true};
+  } else { slots[key] ||= {r: '', f: 1}; slots[key][k] = v; }
   save(); render();
 }
-function logPlanned(key) {
-  const x = S.mealPlan.slots[key], r = recipe(x.r);
-  if (!confirm(`Log ${x.s} × ${r.name} (≈${Math.round(r.n[0] * x.s)} kcal, estimate) for today?`)) return;
-  S.meals.push({id: uid(), date: today(), name: r.name, portion: `${x.s} serving${x.s === 1 ? '' : 's'}`, kcal: Math.round(r.n[0] * x.s), protein: n1(r.n[1] * x.s), carbs: n1(r.n[2] * x.s), fat: n1(r.n[3] * x.s), fibre: n1(r.n[4] * x.s), est: true, savedAt: Date.now()});
-  save(); go('Food');
+function planAdd(key) { // logs 1 serving, only when tapped
+  const x = S.mealPlan.slots[key], r = recipe(x?.r); if (!r) return;
+  const [d, m] = key.split('|'), f = planF(x), n = planN(r, f), pd = dayOffset(DAYS.indexOf(d), planMon());
+  S.meals.push({id: uid(), date: pd >= planMon() && pd <= dayOffset(6, planMon()) ? pd : today(), name: r.name + (x.lo ? ' (leftover)' : ''), portion: `1 serving${f !== 1 ? ` (×${f})` : ''}`,
+    kcal: Math.round(n[0]), protein: n1(n[1]), carbs: n1(n[2]), fat: n1(n[3]), fibre: n1(n[4]), slot: m, est: true, savedAt: Date.now()});
+  save(); render(); toastMsg('Added to ' + m);
 }
-function shoppingList() {
+async function planAskIdeas() {
+  if (planBusy || !confirm('Send your food likes and allergies to Claude?')) return;
+  const T = P(), sys = 'You write realistic UK home recipes. Reply with a strict JSON array only, no other text.';
+  const ask = `Give 3 recipes (mix of breakfast, lunch, dinner) as a JSON array of {"name","meal":"Breakfast|Lunch|Dinner","servings":2,"perServing":{"kcal","protein","carbs","fat","fibre"},"ingredients":[[name, qty, unit]],"method":[steps]}. Ingredients are for the 2-serving batch. Per-serving kcal: breakfast 250-450, lunch and dinner 500-700. Favour high fibre. Likes: ${T.foodLike || 'none given'}. Avoid: ${T.foodAvoid || 'none'}. Allergies (must exclude): ${T.allergies || 'none'}.`;
+  planBusy = true; render();
+  try {
+    const txt = await claude(sys, [{role: 'user', content: ask}]), arr = JSON.parse(txt.match(/\[[\s\S]*\]/)?.[0] || '[]');
+    planIdeas = arr.filter(r => r?.name && PLAN_WIN[r.meal] && r.perServing).map(r => {
+      const s = r.perServing, ing = (r.ingredients || []).map(([n, q, u]) => [String(n), n1((+q || 0) / 2), String(u || '')]), txt2 = (r.name + ' ' + ing.map(i => i[0]).join(' ')).toLowerCase();
+      return {id: 'u' + uid(), name: String(r.name), meal: r.meal, prep: 30, cost: 0, n: ['kcal', 'protein', 'carbs', 'fat', 'fibre'].map(k => n1(+s[k] || 0)), contains: Object.keys(ALLERGENS).filter(k => ALLERGENS[k].some(a => txt2.includes(a))), ing, method: (r.method || []).map(String), mine: true};
+    });
+    if (!planIdeas.length) alert("Claude didn't return any usable recipes. Try again.");
+  } catch (e) { alert(e.message || "Couldn't get recipe ideas."); }
+  planBusy = false; render();
+}
+function planKeep(i) { const r = planIdeas.splice(i, 1)[0]; (S.myRecipes ||= []).push(r); save(); render(); toastMsg(`Kept ${r.name}`); }
+function shoppingList() { // batch = 2 servings at the portion factor; leftover days add nothing
   const out = {};
-  for (const x of Object.values(S.mealPlan.slots)) { const r = recipe(x.r); if (!r) continue; for (const [n, q, u] of r.ing) { const k = n + '|' + u; out[k] = n1((out[k] || 0) + q * x.s); } }
+  for (const x of Object.values(S.mealPlan.slots)) { const r = recipe(x.r); if (!r || x.lo) continue; for (const [n, q, u] of r.ing) { const k = n + '|' + u; out[k] = n1((out[k] || 0) + q * 2 * planF(x)); } }
   return Object.entries(out).sort().map(([k, q]) => { const [n, u] = k.split('|'); return {k, n, q, u}; });
 }
 screens.Shopping = () => {
   const list = shoppingList(), t = S.mealPlan.ticks;
   return `<h1 class="xl">Food</h1>${seg([['Diary', "go('Food')"], ['Meal Planner', "go('MealPlan')"], ['Groceries', "go('Shopping')"]], 'Groceries')}<h2>Shopping list</h2>
-  <div class="card mt">${list.length ? `<p class="mute">Updates automatically when you change servings in the meal plan.</p>${list.map(i => `<label class="chk"><input type="checkbox" ${t[i.k] != null ? 'checked' : ''} onchange="tickItem(${js(i.k)},${i.q},this.checked)"> <span style="${t[i.k] != null ? 'text-decoration:line-through;opacity:.6' : ''}">${esc(i.n)} — ${gb(i.q)}${i.u ? ' ' + esc(i.u) : ''}</span>${t[i.k] != null && t[i.k] !== i.q ? `<span class="tag warn">was ${gb(t[i.k])} when ticked</span>` : ''}</label>`).join('')}
+  <div class="card mt">${list.length ? `<p class="mute">Totals for each 2-serving batch. Leftover days add nothing.</p>${list.map(i => `<label class="chk"><input type="checkbox" ${t[i.k] != null ? 'checked' : ''} onchange="tickItem(${js(i.k)},${i.q},this.checked)"> <span style="${t[i.k] != null ? 'text-decoration:line-through;opacity:.6' : ''}">${esc(i.n)} — ${gb(i.q)}${i.u ? ' ' + esc(i.u) : ''}</span>${t[i.k] != null && t[i.k] !== i.q ? `<span class="tag warn">was ${gb(t[i.k])} when ticked</span>` : ''}</label>`).join('')}
     <button class="sec mt" onclick="S.mealPlan.ticks={};save();render()">Untick all</button>` : '<p class="mute">Plan some meals first.</p>'}</div>`;
 };
 function tickItem(k, q, on) { if (on) S.mealPlan.ticks[k] = q; else delete S.mealPlan.ticks[k]; save(); render(); }
@@ -395,24 +457,25 @@ function addToSlot(m) { // instant log into the open meal, then back where the u
 }
 function addFoodToDraft(f) { S.draft.items.push(foodToItem(f)); mealQ = ''; save(); render(); }
 function addUnknown(q, ai) { const it = parseFood(q) || {id: uid(), name: q, fam: '', per100: null, grams: 100, unitG: 100, src: 'unknown', vary: false, qtyGiven: true}; S.draft.items.push(it); mealQ = ''; save(); render(); if (ai && it.src === 'unknown') lookupUnknown(); }
-const rowH = (name, sub, onclick) => `<li><span>${esc(name)}<br><span class="mute">${esc(sub)}</span></span><button class="rnd plus" onclick="${onclick}" aria-label="Add ${esc(name)}">+</button></li>`;
+// tap a row (not +) or its amount pill to open the nutrition sheet; + still adds at the shown amount
+const rowH = (name, sub, onclick, info, amt) => `<li class="${info ? 'fi-row' : ''}"${info ? ` onclick="${info}"` : ''}><span>${esc(name)}<br><span class="mute">${esc(sub)}</span></span><span class="fi-acts">${info && amt ? `<button class="fi-amt" onclick="event.stopPropagation();${info}" aria-label="Change amount of ${esc(name)}">${esc(amt)}</button>` : ''}<button class="rnd plus" onclick="event.stopPropagation();${onclick}" aria-label="Add ${esc(name)}">+</button></span></li>`;
 function foodHits(q) {
   q = q.toLowerCase().trim(); if (q.length < 2) return [];
   const hit = (...s) => s.flat().some(x => String(x).toLowerCase().includes(q)), seen = new Set(), out = [];
-  const push = (name, sub, on) => { if (!seen.has(name.toLowerCase())) { seen.add(name.toLowerCase()); out.push(rowH(name, sub, on)); } };
-  for (const m of recentMeals(200)) if (hit(m.name)) push(m.name, `${gb(m.kcal)} cal · past meal`, `addToSlot(${js(pick(m, MEAL_KEYS))})`);
-  for (const f of [...(S.foods || []), ...FOODS]) if (hit(f[1], f[0])) push(f[1], `${bankKcal(f)} cal · ${f[5]} g`, `addFoodToDraft(${js(f)})`);
-  for (const [code, b] of Object.entries(S.barcodes || {})) if (b.per100 && hit(b.name)) { const g = b.serving || b.pack || 100; push(b.name, `${Math.round(b.per100[0] * g / 100)} cal · ${g} g`, `mealQ='';addProduct(${js(code)},${js(b)})`); }
+  const push = (name, sub, on, info, amt) => { if (!seen.has(name.toLowerCase())) { seen.add(name.toLowerCase()); out.push(rowH(name, sub, on, info, amt)); } };
+  for (const m of recentMeals(200)) if (hit(m.name)) push(m.name, `${gb(m.kcal)} cal · past meal`, `addToSlot(${js(pick(m, MEAL_KEYS))})`, `openFoodInfo('past',${js(pick(m, MEAL_KEYS))})`, '1 serving');
+  for (const f of [...(S.foods || []), ...FOODS]) if (hit(f[1], f[0])) push(f[1], `${bankKcal(f)} cal · ${f[5]} g`, `addFoodToDraft(${js(f)})`, `openFoodInfo('bank',${js(f)})`, f[5] + ' g');
+  for (const [code, b] of Object.entries(S.barcodes || {})) if (b.per100 && hit(b.name)) { const g = b.serving || b.pack || 100; push(b.name, `${Math.round(b.per100[0] * g / 100)} cal · ${g} g`, `mealQ='';addProduct(${js(code)},${js(b)})`, `openFoodInfo('barcode',${js(code)})`, g + ' g'); }
   return out.slice(0, 30);
 }
 const searchHTML = q => { const r = foodHits(q); return q.trim().length < 2 ? '' : r.length ? `<div class="card"><ul>${r.join('')}</ul></div>`
   : `<div class="card"><p class="mute">Not found.</p>${aiKey() ? `<button class="sec" onclick="addUnknown(${js(q.trim())},true)">✨ Look it up with Claude</button>` : `<button class="sec" onclick="addUnknown(${js(q.trim())},false)">Add it manually</button>`}</div>`; };
 function mealSearch(v) { mealQ = v; clearTimeout(srchT); srchT = setTimeout(() => { const el = document.getElementById('srchRes'); if (el) el.innerHTML = searchHTML(mealQ); }, 150); }
 function mealList(slot) {
-  if (mealTab === 'Favourites') return S.favs.map(f => rowH(f.name, `${gb(f.kcal)} cal${f.portion ? ', ' + f.portion : ''}`, `addToSlot(${js(pick(f, MEAL_KEYS))})`));
-  if (mealTab === 'My Foods') return [...(S.foods || []).map(f => rowH(f[1], `${bankKcal(f)} cal, ${f[5]} g`, `addToSlot(${js(foodAsMeal(f[1], f[3], f[5]))})`)),
-    ...Object.values(S.barcodes || {}).filter(b => b.per100).map(b => { const g = b.serving || b.pack || 100; return rowH(b.name, `${Math.round(b.per100[0] * g / 100)} cal, ${g} g`, `addToSlot(${js({...foodAsMeal(b.name, b.per100, g), est: false})})`); })];
-  const r = recentMeals(40); return [...r.filter(m => slotOf(m) === slot), ...r.filter(m => slotOf(m) !== slot)].slice(0, 20).map(m => rowH(m.name, `${gb(m.kcal)} cal${m.portion ? ', ' + m.portion : ''}`, `addToSlot(${js(pick(m, MEAL_KEYS))})`));
+  if (mealTab === 'Favourites') return S.favs.map(f => rowH(f.name, `${gb(f.kcal)} cal${f.portion ? ', ' + f.portion : ''}`, `addToSlot(${js(pick(f, MEAL_KEYS))})`, `openFoodInfo('past',${js(pick(f, MEAL_KEYS))})`, '1 serving'));
+  if (mealTab === 'My Foods') return [...(S.foods || []).map(f => rowH(f[1], `${bankKcal(f)} cal, ${f[5]} g`, `addToSlot(${js(foodAsMeal(f[1], f[3], f[5]))})`, `openFoodInfo('bank',${js(f)})`, f[5] + ' g')),
+    ...Object.entries(S.barcodes || {}).filter(([, b]) => b.per100).map(([code, b]) => { const g = b.serving || b.pack || 100; return rowH(b.name, `${Math.round(b.per100[0] * g / 100)} cal, ${g} g`, `addToSlot(${js({...foodAsMeal(b.name, b.per100, g), est: false})})`, `openFoodInfo('barcode',${js(code)})`, g + ' g'); })];
+  const r = recentMeals(40); return [...r.filter(m => slotOf(m) === slot), ...r.filter(m => slotOf(m) !== slot)].slice(0, 20).map(m => rowH(m.name, `${gb(m.kcal)} cal${m.portion ? ', ' + m.portion : ''}`, `addToSlot(${js(pick(m, MEAL_KEYS))})`, `openFoodInfo('past',${js(pick(m, MEAL_KEYS))})`, '1 serving'));
 }
 function quickAddSave(f) {
   const d = form(f), v = k => n1(+d[k] || 0);
@@ -430,4 +493,83 @@ function mealStep1(slot) {
   <button class="link" onclick="S.draft.mode='type';render();document.getElementById('mealText').focus()">Describe a whole meal instead</button>
   <div class="utabs" role="tablist">${['History', 'Favourites', 'My Foods'].map(t => `<button role="tab" aria-selected="${t === mealTab}" class="${t === mealTab ? 'on' : ''}" onclick="mealTab='${t}';render()">${t}</button>`).join('')}</div>
   ${rows.length ? `<div class="card"><ul>${rows.join('')}</ul></div>` : `<p class="mute center">${mealTab === 'History' ? 'Meals you log show here.' : mealTab === 'Favourites' ? 'Tap ☆ on a logged meal to make it a favourite.' : 'Foods looked up with Claude and scanned barcodes show here.'}</p>`}`;
+}
+
+// ---------- nutrition sheet: change amount, see nutrition ----------
+// openFoodInfo(kind, payload): 'bank' = FOODS/S.foods row · 'barcode' = barcode number · 'past' = past meal/favourite object · 'meal' = logged entry id (Save changes)
+// Foods with per-100 g values use grams; past meals only have totals, so their amount is a servings multiplier (0.5–3).
+let fi = null;
+const fiMeal = m => ({name: m.name, base: ['kcal', 'protein', 'carbs', 'fat', 'fibre'].map(k => +m[k] || 0)});
+function openFoodInfo(kind, p) {
+  if (kind === 'bank') fi = {kind, name: p[1], per100: p[3], g: p[5], src: (S.foods || []).some(f => f[1] === p[1]) ? 'Claude estimate' : 'Food bank', f: p};
+  else if (kind === 'barcode') { const b = S.barcodes?.[p]; if (!b) return; fi = {kind, name: b.name, per100: b.per100, g: b.serving || b.pack || 100, src: 'Barcode', code: p, sugar: b.sugar100, salt: b.salt100}; }
+  else if (kind === 'past') fi = {kind, ...fiMeal(p), k: 1, src: p.est === false ? 'Typed' : 'Past meal', m: p};
+  else if (kind === 'meal') {
+    const e = S.meals.find(x => x.id == p); if (!e) return;
+    fi = e.per100 && e.grams ? {kind, name: e.name, per100: e.per100, g: e.grams, src: e.fiSrc || 'Logged', id: e.id} : {kind, ...fiMeal(e), k: 1, src: e.est ? 'Estimate' : 'Typed', id: e.id};
+  } else return;
+  fi.g0 = fi.g; fi.back = cur === 'FoodInfo' ? fi.back : cur; go('FoodInfo');
+}
+const fiVals = () => fi.per100 ? [0, 1, 2, 3, 4].map(i => (+fi.per100[i] || 0) * fi.g / 100) : fi.base.map(v => v * fi.k);
+const fiSlot = () => S.draft?.slot || slotNow();
+function fiValsHTML() {
+  const [k, p, c, f, fb] = fiVals(), x = fi.per100 ? fi.g / 100 : 0;
+  return `<div class="fi-kcal"><span class="big">${Math.round(k)}</span> kcal</div>
+    <div class="fi-grid"><div><b>${n1(p)} g</b><span>Protein</span></div><div><b>${n1(c)} g</b><span>Carbs</span></div><div><b>${n1(f)} g</b><span>Fat</span></div><div><b>${n1(fb)} g</b><span>Fibre</span></div>
+    ${fi.sugar != null ? `<div><b>${n1(fi.sugar * x)} g</b><span>Sugar</span></div>` : ''}${fi.salt != null ? `<div><b>${n1(fi.salt * x)} g</b><span>Salt</span></div>` : ''}</div>`;
+}
+function fiSet(v) { // live update without re-rendering the input
+  if (fi.per100) fi.g = Math.max(0, Math.round(+v || 0)); else fi.k = Math.min(3, Math.max(.5, +v || 1));
+  const el = document.getElementById('fiVals'); if (el) el.innerHTML = fiValsHTML();
+}
+function fiChip(m) { if (fi.per100) fi.g = Math.round(fi.g0 * m); else fi.k = m; render(); }
+screens.FoodInfo = () => {
+  if (!fi) return `<h1>Food</h1><div class="card"><p class="mute">Nothing selected.</p><button onclick="go('Food')">Back</button></div>`;
+  const pg = !!fi.per100;
+  return `<div class="mhead"><button class="rnd" onclick="go(fi.back||'Food')" aria-label="Back">‹</button><b class="ttl">Nutrition</b><span></span></div>
+  <div class="card fi-sheet"><h2>${esc(fi.name)}</h2><span class="tag">${esc(fi.src)}</span>
+    <label for="fiAmt">${pg ? 'Amount (g)' : 'Servings'}</label>
+    <div class="row" style="align-items:center"><input id="fiAmt" type="number" inputmode="decimal" ${pg ? 'min="0" step="1"' : 'min="0.5" max="3" step="0.5"'} value="${pg ? fi.g : fi.k}" oninput="fiSet(this.value)"><span class="mute" style="flex:0 0 auto">${pg ? 'g' : '× serving'}</span></div>
+    <div class="chips">${(pg ? [['½', .5], ['1', 1], ['×2', 2], ['×3', 3]] : [['½', .5], ['1', 1], ['1½', 1.5], ['×2', 2], ['×3', 3]]).map(([l, m]) => `<button class="chip${(pg ? fi.g === Math.round(fi.g0 * m) : fi.k === m) ? ' on' : ''}" onclick="fiChip(${m})">${l}</button>`).join('')}</div>
+    <div id="fiVals">${fiValsHTML()}</div>
+    ${pg ? `<p class="mute">Per 100 g: ${Math.round(fi.per100[0])} kcal · P ${n1(fi.per100[1])} · C ${n1(fi.per100[2])} · F ${n1(fi.per100[3])} · Fibre ${n1(fi.per100[4] || 0)} g${fi.sugar != null ? ` · Sugar ${n1(fi.sugar)}` : ''}${fi.salt != null ? ` · Salt ${n1(fi.salt)}` : ''}</p>` : '<p class="mute">Past meals only store totals, so the amount is a multiple of what you logged.</p>'}
+    ${fi.kind === 'meal' ? '<button class="mt" onclick="fiSave()">Save changes</button>' : `<button class="mt" onclick="fiAdd()">Add to ${esc(fiSlot().toLowerCase())}</button>`}
+    <button class="sec mt" onclick="fiFav()">☆ Favourite</button></div>`;
+};
+function fiEntry() { // the sheet's food at the chosen amount, as a meal entry
+  const [k, p, c, f, fb] = fiVals(), pg = !!fi.per100;
+  return {name: fi.name, portion: pg ? `${fi.g} g ${fi.name}` : fi.k === 1 ? (fi.m?.portion || '') : `${fi.k} × ${fi.m?.portion || 'serving'}`, kcal: Math.round(k), protein: n1(p), carbs: n1(c), fat: n1(f), fibre: n1(fb), est: fi.src !== 'Barcode' && fi.src !== 'Typed'};
+}
+function fiAdd() {
+  if (S.draft && fi.per100 && (fi.kind === 'bank' || fi.kind === 'barcode')) { // keep building the open meal, as + does
+    const it = fi.kind === 'bank' ? {...foodToItem(fi.f), grams: fi.g} : {id: uid(), name: fi.name, fam: '', per100: fi.per100, grams: fi.g, unitG: fi.g, src: 'packet', vary: false, qtyGiven: true, asked: true, barcode: fi.code};
+    S.draft.items.push(it); mealQ = ''; save(); return go('Meal');
+  }
+  const slot = fiSlot(), date = S.draft?.date || (fi.back === 'Food' ? fDay() : today()), back = fi.back === 'Meal' ? mealBack : fi.back || 'Food';
+  S.meals.push({id: uid(), date, ...fiEntry(), slot, ...(fi.per100 ? {per100: fi.per100, grams: fi.g, fiSrc: fi.src} : {}), savedAt: Date.now()});
+  if (S.draft && !S.draft.items.length) S.draft = null;
+  quickAdd = false; mealQ = ''; save(); go(back); toastMsg('Added to ' + slot);
+}
+function fiSave() { // scales the logged entry; draft items scale with it
+  const e = S.meals.find(x => x.id == fi.id); if (!e) return;
+  const r = fi.per100 ? (e.grams ? fi.g / e.grams : 1) : fi.k;
+  if (e.items) e.items.forEach(x => x.grams = Math.round(x.grams * r));
+  Object.assign(e, fiEntry(), {name: e.name, est: e.est, ...(fi.per100 ? {grams: fi.g} : {})});
+  if (!fi.per100 && e.items) e.portion = e.items.map(x => `${x.grams} g ${x.name}`).join(', ');
+  save(); go(fi.back || 'Food'); toastMsg('Saved');
+}
+function fiFav() { const m = fiEntry(); if (S.favs.some(f => f.name === m.name && f.kcal === m.kcal)) return alert('Already a favourite.'); S.favs.push({id: uid(), date: today(), ...m}); save(); toastMsg('Added to favourites'); }
+TAB_OF.FoodInfo = 'Food';
+const fiQuickFood = () => { const r = recentMeals(); return `<div class="card"><div class="sec-h"><h2>Quick add</h2><button class="link" style="width:auto" onclick="copyYesterday()">Copy yesterday</button></div>
+  ${r.length ? `<ul>${r.map(m => rowH(m.name, `${gb(m.kcal)} kcal`, `repeatMeal(${js(pick(m, MEAL_KEYS))})`, `openFoodInfo('past',${js(pick(m, MEAL_KEYS))})`, '1 serving')).join('')}</ul>` : '<p class="mute">Meals you log show here for one-tap adding.</p>'}</div>`; };
+
+// Past day: what else happened, alongside the editable meals
+function dayRecap(d) {
+  const sets = S.workouts.filter(w => w.date === d), ex = [...new Set(sets.map(w => w.exercise))], wt = S.weights.filter(w => w.date === d).at(-1), water = dayTotals(d).water, st = stepsOn(d);
+  return `<div class="card"><b>${ukDate(d)}${dayDone(d) ? ' ✓' : ''}</b><ul>
+    <li><span>Workout</span><span class="mute">${sets.length ? `${ex.length} exercise${ex.length === 1 ? '' : 's'}, ${sets.length} sets` : 'none'}</span></li>
+    <li><span>Water</span><span class="mute">${water ? water + ' ml' : 'not logged'}</span></li>
+    <li><span>Weight</span><span class="mute">${wt ? esc(wt.kg) + ' kg' : '–'}</span></li>
+    <li><span>Steps</span><span class="mute">${st == null ? 'not logged' : st.toLocaleString('en-GB')}</span></li></ul>
+    <p class="mute">Edit meals below. ${dayDone(d) ? '' : `<button class="link" style="width:auto" onclick="completeDay('${d}')">Mark this day complete</button>`}</p></div>`;
 }
