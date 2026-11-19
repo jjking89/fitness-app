@@ -160,5 +160,4 @@ async function checkMenus(force = false) {
   } catch (e) { if (force) alert("Couldn't check menus: " + e.message); }
   menuBusy = false;
 }
-applyMenuUpdates();
-setTimeout(() => checkMenus(), 4000); // a few seconds after opening, at most once a month
+setTimeout(() => { if (typeof S === 'undefined') return; applyMenuUpdates(); setTimeout(() => checkMenus(), 4000); }, 0); // after boot() has loaded your data; menu check at most once a month
