@@ -282,4 +282,4 @@ function render() {
   fab.hidden = ['Meal', 'Interview', 'Builder', 'Generate', 'Training'].includes(cur);
   tick();
 }
-function boot() { load(); save(); render(); setInterval(tick, 500); document.addEventListener('visibilitychange', () => { tick(); if (!document.hidden && ['Today', 'Training'].includes(cur)) render(); }); }
+function boot() { load(); save(); navigator.storage?.persist?.().catch(() => {}); render(); setInterval(tick, 500); document.addEventListener('visibilitychange', () => { tick(); if (!document.hidden && ['Today', 'Training'].includes(cur)) render(); }); }
